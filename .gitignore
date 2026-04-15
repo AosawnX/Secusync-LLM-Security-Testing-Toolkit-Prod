@@ -1,0 +1,37 @@
+# ── Python / Backend ──
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+*.egg
+dist/
+build/
+backend/venv/
+backend/*.db
+.env
+.env.local
+
+# ── Node / Frontend ──
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+*.local
+
+# ── IDE / OS ──
+.vscode/
+.idea/
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+Thumbs.db
+
+# ── Testing ──
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ── Misc ──
+*.log
