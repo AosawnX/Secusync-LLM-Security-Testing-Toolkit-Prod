@@ -63,7 +63,7 @@ export function Dashboard() {
         else if (filter === '30d') filterDate.setDate(now.getDate() - 30)
         else if (filter === '90d') filterDate.setDate(now.getDate() - 90)
 
-        const filteredScans = allScans.filter((r) => new Date(r.created_at) >= filterDate)
+        const filteredScans = allScans.filter((r) => new Date(r.created_at + (r.created_at.endsWith('Z') ? '' : 'Z')) >= filterDate)
 
         const totalScans = filteredScans.length
         const activeTargets = profiles.length
@@ -158,7 +158,7 @@ export function Dashboard() {
                                     <Link to={`/runs/${p.id}`} className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors block">
                                         {p.name}
                                     </Link>
-                                    <p className="text-xs text-gray-500 capitalize">{p.provider} • {new Date(p.created_at).toLocaleString()}</p>
+                                    <p className="text-xs text-gray-500 capitalize">{p.provider} • {new Date(p.created_at + (p.created_at.endsWith('Z') ? '' : 'Z')).toLocaleString()}</p>
                                 </div>
                                 <div className="flex items-center gap-4">
                                     <span className="px-2 py-1 bg-green-50 text-green-700 text-xs rounded-full border border-green-100">Ready</span>

@@ -73,7 +73,7 @@ export function Reports() {
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="text-sm text-gray-500 flex items-center gap-2">
                                             <Clock className="h-4 w-4" />
-                                            {new Date(scan.created_at).toLocaleDateString()} {new Date(scan.created_at).toLocaleTimeString()}
+                                            {new Date(scan.created_at + (scan.created_at.endsWith('Z') ? '' : 'Z')).toLocaleDateString()} {new Date(scan.created_at + (scan.created_at.endsWith('Z') ? '' : 'Z')).toLocaleTimeString()}
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">

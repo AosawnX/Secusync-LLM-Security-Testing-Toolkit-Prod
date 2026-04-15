@@ -18,3 +18,5 @@ app.include_router(scans.router)
 @app.get("/api/health")
 def health_check():
     return {"status": "ok"}
+
+# Trigger reload

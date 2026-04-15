@@ -129,7 +129,7 @@ export function Targets() {
                 {!showNewTarget && (
                     <button
                         onClick={() => setShowNewTarget(true)}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg flex items-center gap-2 hover:bg-blue-700 transition"
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg flex items-center gap-2 hover:bg-blue-700 transition cursor-pointer"
                     >
                         <Plus className="h-5 w-5" />
                         Add New Target
@@ -141,7 +141,7 @@ export function Targets() {
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-blue-100 ring-1 ring-blue-50">
                     <div className="flex justify-between items-center mb-6">
                         <h2 className="text-lg font-semibold">{editingTargetId ? 'Edit Target' : 'Configure New Target'}</h2>
-                        <button onClick={closeForm} className="text-gray-400 hover:text-gray-600">
+                        <button onClick={closeForm} className="text-gray-400 hover:text-gray-600 cursor-pointer">
                             <X className="h-5 w-5" />
                         </button>
                     </div>
@@ -255,14 +255,14 @@ export function Targets() {
                             <button
                                 type="button"
                                 onClick={closeForm}
-                                className="flex-1 py-2.5 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors"
+                                className="flex-1 py-2.5 bg-white border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
                             >
                                 Cancel
                             </button>
                             <button
                                 type="submit"
                                 disabled={creating}
-                                className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm"
+                                className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm cursor-pointer disabled:cursor-not-allowed"
                             >
                                 {creating ? 'Saving...' : (
                                     <>
@@ -283,7 +283,7 @@ export function Targets() {
                         <p className="mb-6">Get started by adding your first target.</p>
                         <button
                             onClick={() => setShowNewTarget(true)}
-                            className="px-4 py-2 bg-blue-600 text-white rounded-lg inline-flex items-center gap-2 hover:bg-blue-700 transition"
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg inline-flex items-center gap-2 hover:bg-blue-700 transition cursor-pointer"
                         >
                             <Plus className="h-5 w-5" />
                             Add New Target
@@ -312,7 +312,7 @@ export function Targets() {
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="text-sm text-gray-500">
-                                            {new Date(target.created_at).toLocaleDateString()}
+                                            {new Date(target.created_at + (target.created_at.endsWith('Z') ? '' : 'Z')).toLocaleDateString()}
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium flex justify-end gap-3">
@@ -324,14 +324,14 @@ export function Targets() {
                                         </Link>
                                         <button
                                             onClick={() => handleEdit(target)}
-                                            className="text-gray-500 hover:text-blue-600 transition-colors"
+                                            className="text-gray-500 hover:text-blue-600 transition-colors cursor-pointer"
                                             title="Edit Target"
                                         >
                                             <Edit2 className="h-4 w-4" />
                                         </button>
                                         <button
                                             onClick={() => handleDelete(target.id, target.name)}
-                                            className="text-gray-500 hover:text-red-600 transition-colors"
+                                            className="text-gray-500 hover:text-red-600 transition-colors cursor-pointer"
                                             title="Delete Target"
                                         >
                                             <Trash2 className="h-4 w-4" />

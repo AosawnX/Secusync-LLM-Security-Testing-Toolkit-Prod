@@ -100,9 +100,9 @@ export function RunDetail() {
                                 <dt className="text-sm font-medium text-gray-500">Provider</dt>
                                 <dd className="mt-1 text-sm text-gray-900 capitalize bg-gray-50 inline-block px-2 py-1 rounded">{target.provider}</dd>
                             </div>
-                            <div>
-                                <dt className="text-sm font-medium text-gray-500">Created At</dt>
-                                <dd className="mt-1 text-sm text-gray-900">{new Date(target.created_at).toLocaleString()}</dd>
+                            <div className="sm:col-span-1">
+                                <dt className="text-sm font-medium text-gray-500">Created</dt>
+                                <dd className="mt-1 text-sm text-gray-900">{new Date(target.created_at + (target.created_at.endsWith('Z') ? '' : 'Z')).toLocaleString()}</dd>
                             </div>
                             {target.endpoint_url && (
                                 <div className="sm:col-span-2">
@@ -125,10 +125,9 @@ export function RunDetail() {
                                     <li key={scan.id} className="py-3 flex justify-between items-center group">
                                         <div>
                                             <p className="font-medium text-gray-900">Scan {scan.id.slice(0, 8)}...</p>
-                                            <p className="text-xs text-gray-500 flex items-center gap-1">
-                                                <Clock className="h-3 w-3" />
-                                                {new Date(scan.created_at).toLocaleString()}
-                                            </p>
+                                            <div className="text-sm text-gray-500">
+                                                {new Date(scan.created_at + (scan.created_at.endsWith('Z') ? '' : 'Z')).toLocaleString()}
+                                            </div>
                                         </div>
                                         <div className="flex items-center gap-3">
                                             <span className={`px-2 py-1 text-xs rounded-full border ${scan.status === 'COMPLETED' ? 'bg-green-50 text-green-700 border-green-100' :
