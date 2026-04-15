@@ -56,3 +56,45 @@ def get_scan(run_id: str, db: Session = Depends(get_db)):
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
     return run
+
+@router.get("/{run_id}/report/technical")
+async def get_technical_report(run_id: str, db: Session = Depends(get_db)):
+    from app.core.report_service import ReportService
+    from fastapi.responses import FileResponse
+    run = db.query(ScanRun).filter(ScanRun.id == run_id).first()
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    variants = db.query(PromptVariant).filter(PromptVariant.scan_run_id == run_id).all()
+    
+    report_service = ReportService()
+    report_path = await report_service.generate_technical_report(run, variants)
+    return FileResponse(report_path, media_type='application/pdf', filename=f"Technical_Report_{run_id}.pdf")
+
+@router.get("/{run_id}/report/executive")
+async def get_executive_report(run_id: str, db: Session = Depends(get_db)):
+    from app.core.report_service import ReportService
+    from fastapi.responses import FileResponse
+    run = db.query(ScanRun).filter(ScanRun.id == run_id).first()
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    variants = db.query(PromptVariant).filter(PromptVariant.scan_run_id == run_id).all()
+    
+    report_service = ReportService()
+    report_path = await report_service.generate_executive_report(run, variants)
+    return FileResponse(report_path, media_type='application/pdf', filename=f"Executive_Report_{run_id}.pdf")
+
+@router.get("/{run_id}/report/poc")
+async def get_poc_bundle(run_id: str, db: Session = Depends(get_db)):
+    from app.core.report_service import ReportService
+    from fastapi.responses import FileResponse
+    run = db.query(ScanRun).filter(ScanRun.id == run_id).first()
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    variants = db.query(PromptVariant).filter(PromptVariant.scan_run_id == run_id).all()
+    
+    report_service = ReportService()
+    zip_path = report_service.generate_poc_bundle(run, variants)
+    if not zip_path:
+        raise HTTPException(status_code=400, detail="No vulnerabilities found to generate POC")
+        
+    return FileResponse(zip_path, media_type='application/zip', filename=f"POC_Bundle_{run_id}.zip")

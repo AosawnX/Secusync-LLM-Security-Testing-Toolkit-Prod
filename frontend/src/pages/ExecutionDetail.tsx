@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, AlertTriangle, CheckCircle, Terminal, RotateCw, Clock } from 'lucide-react'
+import { ArrowLeft, AlertTriangle, CheckCircle, Terminal, RotateCw, Clock, FileText, Download } from 'lucide-react'
 import { apiClient } from '../api/client'
 
 interface PromptVariant {
@@ -90,6 +90,27 @@ export function ExecutionDetail() {
                 <div>
                     <div className="flex gap-2">
                         <button
+                            onClick={() => window.open(`http://127.0.0.1:8000/api/scans/${run.id}/report/executive`, '_blank')}
+                            className="bg-white hover:bg-gray-50 border border-blue-200 text-blue-700 font-medium py-2 px-4 rounded inline-flex items-center gap-2 cursor-pointer transition-colors"
+                        >
+                            <FileText className="h-4 w-4" />
+                            <span>Executive PDF</span>
+                        </button>
+                        <button
+                            onClick={() => window.open(`http://127.0.0.1:8000/api/scans/${run.id}/report/technical`, '_blank')}
+                            className="bg-white hover:bg-gray-50 border border-blue-200 text-blue-700 font-medium py-2 px-4 rounded inline-flex items-center gap-2 cursor-pointer transition-colors"
+                        >
+                            <Download className="h-4 w-4" />
+                            <span>Technical PDF</span>
+                        </button>
+                        <button
+                            onClick={() => window.open(`http://127.0.0.1:8000/api/scans/${run.id}/report/poc`, '_blank')}
+                            className="bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 font-medium py-2 px-4 rounded inline-flex items-center gap-2 cursor-pointer transition-colors"
+                        >
+                            <Download className="h-4 w-4" />
+                            <span>PoC ZIP</span>
+                        </button>
+                        <button
                             onClick={async () => {
                                 if (!run) return
                                 try {
@@ -107,7 +128,7 @@ export function ExecutionDetail() {
                                     alert("Error restarting scan")
                                 }
                             }}
-                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded inline-flex items-center gap-2"
+                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded inline-flex items-center gap-2 cursor-pointer"
                         >
                             <RotateCw className="h-4 w-4" />
                             <span>Retry Attack</span>
@@ -132,12 +153,12 @@ export function ExecutionDetail() {
                     <div className="mt-4 flex flex-col gap-2 text-sm text-gray-500">
                         <div className="flex items-center gap-2">
                             <Clock className="h-4 w-4" />
-                            Started: {new Date(run.created_at).toLocaleString()}
+                            Started: {new Date(run.created_at + (run.created_at.endsWith('Z') ? '' : 'Z')).toLocaleString()}
                         </div>
                         {run.completed_at && (
                             <div className="flex items-center gap-2">
                                 <CheckCircle className="h-4 w-4" />
-                                Completed: {new Date(run.completed_at).toLocaleString()}
+                                Completed: {new Date(run.completed_at + (run.completed_at.endsWith('Z') ? '' : 'Z')).toLocaleString()}
                             </div>
                         )}
                     </div>
@@ -185,7 +206,7 @@ export function ExecutionDetail() {
                         variants.map((variant, i) => (
                             <div key={i} className="border-b border-gray-900 pb-2 mb-2">
                                 <div className="text-blue-400 flex gap-2">
-                                    <span className="opacity-50">[{new Date(variant.created_at).toLocaleTimeString()}]</span>
+                                    <span className="opacity-50">[{new Date(variant.created_at + (variant.created_at.endsWith('Z') ? '' : 'Z')).toLocaleTimeString()}]</span>
                                     <span>&gt; {variant.prompt_text}</span>
                                 </div>
                                 <div className="text-gray-300 pl-4 mt-1 whitespace-pre-wrap">

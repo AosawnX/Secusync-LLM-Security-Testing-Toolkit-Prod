@@ -185,7 +185,11 @@ This file is updated by the AI agent in two situations:
 
 ## Sprint 5
 
-*(No entries yet)*
+**Date:** April 15, 2026
+
+- **Action:** Migrated the complete PDF generation logic from the "FYP Prototype for IEEE Ignite".
+- **Details:** Replicated the `report_service.py` architecture dynamically bridging `ScanRun` and `PromptVariant` states using `xhtml2pdf` and `jinja2`.
+- **Status:** Integrated `report.html`. Wired up `Executive` and `Technical` PDF downloads directly from the frontend React execution detail UI. PoC bundle exported as a ZIP containing reproduction guides and context templates representing high-fidelity attack pathways.
 
 ---
 

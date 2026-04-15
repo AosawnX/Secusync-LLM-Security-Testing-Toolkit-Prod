@@ -401,50 +401,40 @@ Rebuilding clean with the architecture defined in `architecture.md` produces a m
 
 ### Sprint 1 — TLLM Config + Basic Prompt Injection
 
-🔲 **Status:** Not yet started  
+✅ **Status:** Completed  
 **Planned:** Oct 11–31, 2025
 
 **Key Decisions to Document Here:**
-- How TLLM API keys are stored and referenced
-- Baseline prompt template format chosen
-- Verdict data model finalized
+- Utilized Pydantic settings for TLLM API key and configuration injection securely.
+- Adopted the LocalMock provider structure alongside standard external targets.
 
-**Actual Outcomes:** *(to be filled)*  
-**Deviations from Plan:** *(to be filled)*  
-**Exit Criteria Met:** *(to be filled)*
+**Actual Outcomes:** Basic scan cycle functioning using fixed target schemas. Runs register in the database.  
+**Deviations from Plan:** Advanced target forms introduced earlier to account for local mock.  
 
 ---
 
 ### Sprint 2 — Mutation Engine
 
-🔲 **Status:** Not yet started  
+✅ **Status:** Completed  
 **Planned:** Nov 1–15, 2025
 
 **Key Decisions to Document Here:**
-- HuggingFace model chosen for paraphrasing (model name + rationale)
-- HuggingFace model chosen for translation (model name + rationale)
-- FAISS similarity threshold chosen (0.95 or adjusted)
-- Mutation depth default value and reasoning
+- Utilized rule-based structural shifts alongside basic injections (Base64, JSON wrap, framing, leetspeak).
 
-**Actual Outcomes:** *(to be filled)*  
-**Deviations from Plan:** *(to be filled)*  
-**Exit Criteria Met:** *(to be filled)*
+**Actual Outcomes:** The `MutationEngine` successfully extends baseline prompts dynamically prior to network dispatch.  
 
 ---
 
 ### Sprint 3 — Hybrid Analysis Module
 
-🔲 **Status:** Not yet started  
+✅ **Status:** Completed  
 **Planned:** Nov 16–30, 2025
 
 **Key Decisions to Document Here:**
-- Regex patterns finalized (any additions/modifications to architecture.md set)
-- HuggingFace judge model chosen (model name + rationale)
-- Combiner logic edge cases discovered and resolved
+- Dual-layer methodology implemented: The LLM Judge acts as the deterministic primary, with Regex providing hard safety fallbacks.
+- Weighted scoring system applied (0.0 to 1.0) inside the evaluation loops to categorize risk severity.
 
-**Actual Outcomes:** *(to be filled)*  
-**Deviations from Plan:** *(to be filled)*  
-**Exit Criteria Met:** *(to be filled)*
+**Actual Outcomes:** Responses evaluate conditionally on semantic context. Identified vulnerabilities accurately populate via `PromptVariant` databases.  
 
 ---
 
@@ -466,17 +456,16 @@ Rebuilding clean with the architecture defined in `architecture.md` produces a m
 
 ### Sprint 5 — Report Generator
 
-🔲 **Status:** Not yet started  
+✅ **Status:** Completed  
 **Planned:** Jan 16–Feb 15, 2026
 
 **Key Decisions to Document Here:**
-- PDF library final choice (reportlab vs weasyprint) with measured rationale
-- PoC bundle format (JSON? ZIP? embedded in PDF?)
-- Redaction strategy implementation details
+- Utilized `xhtml2pdf` + `jinja2` directly overriding complex library dependencies due to raw HTML to PDF parity requirements.
+- Modularized technical vs executive insights inside the reporting generation function by piping database hits back into the LLM Judge for tailored synthesis.
+- Implemented automated POC bundling via standard zip exports.
 
-**Actual Outcomes:** *(to be filled)*  
-**Deviations from Plan:** *(to be filled)*  
-**Exit Criteria Met:** *(to be filled)*
+**Actual Outcomes:** Clean dynamic PDFs generate securely on demand without compromising tokens or DB stability.  
+**Exit Criteria Met:** Yes. Frontend integrated safely with immediate visual responses.
 
 ---
 

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SECUSYNC Report - {{ run.id }}</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        h1,
+        h2 {
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+        }
+
+        .summary {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+
+        .score {
+            font-size: 2em;
+            font-weight: bold;
+        }
+        
+        .score.high { color: red; }
+        .score.medium { color: orange; }
+        .score.low { color: green; }
+
+        .finding {
+            padding: 10px;
+            border: 1px solid #ddd;
+            margin-bottom: 10px;
+            border-radius: 5px;
+        }
+
+        .finding.high {
+            border-left: 5px solid red;
+            background: #fff5f5;
+        }
+
+        .finding.medium {
+            border-left: 5px solid orange;
+            background: #fffcf5;
+        }
+
+        .meta {
+            color: #666;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>{{ report_type }}</h1>
+    <div class="summary">
+        <h2>Run Overview</h2>
+        <p><strong>Run ID:</strong> {{ run.id }}</p>
+        <p><strong>Target ID:</strong> {{ run.tllm_profile_id }}</p>
+        <p><strong>Date:</strong> {{ run.created_at.strftime('%A, %B %d, %Y') }}</p>
+        <p><strong>Status:</strong> {{ run.status }}</p>
+        <p><strong>Vulnerability Count:</strong> <span class="score {{ 'high' if run.vulnerabilities_found > 0 else 'low' }}">{{ run.vulnerabilities_found }}</span></p>
+    </div>
+
+    {% if is_executive %}
+    <div class="summary" style="background-color: #f0f7ff; border: 1px solid #cce5ff;">
+        <h2 style="color: #004085;">Executive Summary & Risk Assessment</h2>
+        <div style="white-space: pre-wrap;">{{ executive_summary }}</div>
+    </div>
+    {% endif %}
+
+    {% if is_technical %}
+    <div class="summary" style="background-color: #fff0f0; border: 1px solid #ffcccc;">
+        <h2 style="color: #850000;">AI Technical Analysis & Remediation</h2>
+        <div style="white-space: pre-wrap;">{{ technical_summary }}</div>
+    </div>
+    {% endif %}
+
+    <h2>Findings</h2>
+    {% if findings %}
+    {% for finding in findings %}
+    <div class="finding {{ finding.severity }}">
+        <strong>[{{ finding.severity|upper }}]</strong> {{ finding.type }}
+        <p><strong>Prompt:</strong> {{ finding.prompt }}</p>
+        <p><strong>Response Excerpt:</strong> {{ finding.description }}</p>
+    </div>
+    {% endfor %}
+    {% else %}
+    <p>No vulnerabilities detected.</p>
+    {% endif %}
+
+    <h2>Additional Notes</h2>
+    <p>This report was generated using the SECUSYNC Security Testing Toolkit.</p>
+    <p class="meta">Generated automatically. End of Report.</p>
+</body>
+
+</html>

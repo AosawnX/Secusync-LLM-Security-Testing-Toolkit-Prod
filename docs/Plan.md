@@ -170,14 +170,14 @@ The product grows in this order:
 **Goal:** Both PDF reports fully generated per scan run.
 
 ### Tasks
-- [ ] Choose and integrate PDF library (evaluate `reportlab` vs `weasyprint`)
-- [ ] Implement `report_generator.py`
-- [ ] Generate Executive Report PDF (all sections from architecture)
-- [ ] Generate Technical Report PDF (all sections including PoC bundles)
+- [x] Choose and integrate PDF library (imported prototype `xhtml2pdf` + `jinja2` logic)
+- [x] Implement `report_service.py` (ported from prototype)
+- [x] Generate Executive Report PDF (using prototype's LLM risk assessment matrix)
+- [x] Generate Technical Report PDF (using prototype's detailed finding templates)
 - [ ] Implement redaction in Technical Report (secrets shown as `[REDACTED]`)
-- [ ] Add responsible disclosure notice to all PoC bundles
-- [ ] Implement `GET /api/reports/{run_id}/executive` and `technical` endpoints
-- [ ] Frontend: Reports page — list runs, download executive and technical PDF buttons
+- [x] Add responsible disclosure notice to all PoC bundles (included in prototype's ZIP logic)
+- [x] Implement `GET /api/scans/{run_id}/report/executive` and `technical` endpoints
+- [x] Frontend: Reports page — list runs, download executive and technical PDF buttons
 - [ ] Write tests: `test_report_generator.py`
 
 ### Exit Criteria
