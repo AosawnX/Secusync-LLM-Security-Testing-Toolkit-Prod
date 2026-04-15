@@ -213,16 +213,23 @@ export function ExecutionDetail() {
                                     {variant.response_text || '(no response)'}
                                 </div>
                                 <div className="pl-4 mt-2 flex gap-4">
+                                <div className="pl-4 mt-2 flex gap-4">
                                     <div className="flex-1 border border-gray-800 rounded p-2 bg-gray-900/50">
                                         <div className="text-xs uppercase text-gray-500 font-bold mb-1">Verdict</div>
-                                        <div className={`text-xs font-mono ${variant.verdict === 'VULNERABLE' ? 'text-red-400' : 'text-green-500'}`}>
+                                        <div className={`text-xs font-mono font-bold ${variant.verdict === 'VULNERABLE' ? 'text-red-400' : variant.verdict === 'NEEDS_REVIEW' ? 'text-orange-400' : 'text-green-500'}`}>
                                             {variant.verdict}
                                         </div>
                                     </div>
-                                    {variant.deterministic_matches && (
+                                    {variant.deterministic_matches && variant.deterministic_matches !== "[]" && (
                                         <div className="flex-1 border border-gray-800 rounded p-2 bg-gray-900/50">
-                                            <div className="text-xs uppercase text-gray-500 font-bold mb-1">Regex Matches</div>
+                                            <div className="text-xs uppercase text-gray-500 font-bold mb-1">Deterministic Flags</div>
                                             <div className="text-red-400 text-xs font-mono">{variant.deterministic_matches}</div>
+                                        </div>
+                                    )}
+                                    {variant.semantic_classification && (
+                                        <div className="flex-1 border border-gray-800 rounded p-2 bg-gray-900/50">
+                                            <div className="text-xs uppercase text-gray-500 font-bold mb-1">Semantic Class</div>
+                                            <div className="text-blue-300 text-xs font-mono">{variant.semantic_classification}</div>
                                         </div>
                                     )}
                                 </div>

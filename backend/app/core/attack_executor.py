@@ -13,7 +13,7 @@ from app.models.scan_run import ScanRun
 from app.models.prompt_variant import PromptVariant
 from app.core.tllm_connector import TLLMConnector, TLLMConnectionError
 from app.core.engine.mutation import MutationEngine
-from app.core.engine.analysis import AnalysisEngine
+from app.core.analysis.hybrid import HybridAnalysisEngine
 
 RUNS_DIR = "runs"
 
@@ -143,32 +143,26 @@ async def execute_scan_run(run_id: str, db: Session):
                     variant.response_text = response
                     
                     # 4. Analyze response (dual-layer)
-                    analysis = await analysis_engine.analyze(
-                        response,
-                        judge_connector,
-                        original_prompt=prompt_text
+                    analysis = await HybridAnalysisEngine.analyze(
+                        raw_response=response,
+                        judge_connector=judge_connector,
+                        original_prompt=prompt_text,
+                        system_prompt=profile.system_prompt
                     )
                     
-                    if analysis["is_vulnerable"]:
-                        variant.verdict = "VULNERABLE"
-                        variant.deterministic_matches = json.dumps(
-                            [f.get("description", "") for f in analysis.get("findings", [])]
-                        )
+                    variant.verdict = analysis["verdict"]
+                    variant.deterministic_matches = analysis["deterministic_matches"]
+                    variant.semantic_classification = analysis["semantic_classification"]
+                    
+                    if analysis["verdict"] == "VULNERABLE":
                         vulnerabilities_found += 1
                         total_score += analysis["score"]
                         findings_list.append({
                             "type": "vulnerability",
                             "severity": "high" if analysis["score"] > 0.8 else "medium",
-                            "description": f"Vulnerability detected: {prompt_text[:60]}...",
+                            "description": analysis["reason"],
                             "score": analysis["score"]
                         })
-                    else:
-                        variant.verdict = "NOT_VULNERABLE"
-                    
-                    # Store semantic classification if from judge
-                    llm_finding = next((f for f in analysis.get("findings", []) if f.get("source") == "llm_judge"), None)
-                    if llm_finding:
-                        variant.semantic_classification = llm_finding.get("description", "")
 
                     # 5. Write JSONL log entry
                     log_entry = {
