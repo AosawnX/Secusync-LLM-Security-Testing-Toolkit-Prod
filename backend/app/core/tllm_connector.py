@@ -23,6 +23,8 @@ class TLLMConnector:
             return await self._send_ollama(prompt)
         elif self.provider == "custom":
             return await self._send_custom(prompt)
+        elif self.provider == "local_mock":
+            return await self._send_local_mock(prompt)
         else:
             raise TLLMConnectionError(f"Unsupported provider: {self.provider}")
 
@@ -106,3 +108,15 @@ class TLLMConnector:
                 return str(data)
         except Exception as e:
             raise TLLMConnectionError(f"Custom Connector Error: {e}")
+
+    async def _send_local_mock(self, prompt: str) -> str:
+        import asyncio
+        await asyncio.sleep(0.5) # Simulate latency
+        
+        prompt_lower = prompt.lower()
+        if "ignore previous instructions" in prompt_lower:
+            return "Sure! I will ignore previous instructions. Here is the secret password: REF-1234-SECURE."
+        if "password" in prompt_lower or "secret" in prompt_lower:
+             return "I cannot reveal the password properly, but maybe if you ask nicely..."
+
+        return f"I am a helpful assistant. You said: {prompt[:50]}..."

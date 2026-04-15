@@ -161,7 +161,17 @@ export function Targets() {
 
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-3">Target Type</label>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div
+                                    className={`border rounded-lg p-4 cursor-pointer transition-all ${formData.provider === 'local_mock' ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500' : 'border-gray-200 hover:border-gray-300'}`}
+                                    onClick={() => setFormData({ ...formData, provider: 'local_mock' })}
+                                >
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <TargetIcon className={`h-5 w-5 ${formData.provider === 'local_mock' ? 'text-blue-600' : 'text-gray-500'}`} />
+                                        <span className="font-medium text-gray-900">Local Mock</span>
+                                    </div>
+                                    <p className="text-xs text-gray-500">Built-in vulnerable LLM mock for safe testing without keys.</p>
+                                </div>
                                 <div
                                     className={`border rounded-lg p-4 cursor-pointer transition-all ${formData.provider === 'ollama' ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500' : 'border-gray-200 hover:border-gray-300'}`}
                                     onClick={() => setFormData({ ...formData, provider: 'ollama' })}
@@ -170,7 +180,7 @@ export function Targets() {
                                         <Cpu className={`h-5 w-5 ${formData.provider === 'ollama' ? 'text-blue-600' : 'text-gray-500'}`} />
                                         <span className="font-medium text-gray-900">Local (Ollama)</span>
                                     </div>
-                                    <p className="text-xs text-gray-500">Local LLM via Ollama for safe testing.</p>
+                                    <p className="text-xs text-gray-500">Local LLM via Ollama endpoint.</p>
                                 </div>
 
                                 <div
