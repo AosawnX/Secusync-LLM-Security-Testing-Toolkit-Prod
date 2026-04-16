@@ -167,7 +167,44 @@ This file is updated by the AI agent in two situations:
 
 ## Sprint 2
 
-*(No entries yet)*
+### DEVIATION — Mutation Engine File Location
+- **Date:** 2026-04-17
+- **Sprint:** 2
+- **Original architecture.md specification:** `backend/app/core/mutation_engine.py`
+- **What was changed:** Engine lives at `backend/app/core/engine/mutation.py` (directory was created during the Sprint 1 prototype port). Companion files `hf_client.py` and `dedup.py` sit alongside it in the same `engine/` package.
+- **Reason:** The `engine/` package was pre-existing from the prototype import; relocating would cascade through imports in `attack_executor.py` and is safer to consolidate in Sprint 7 cleanup alongside the `report_service.py` → `report_generator.py` rename.
+- **architecture.md updated:** NO (pending Sprint 7)
+
+### DEVIATION — FAISS Dedup Fallback
+- **Date:** 2026-04-17
+- **Sprint:** 2
+- **Original architecture.md specification:** FAISS cosine similarity dedup (>0.95 → discard), §3.2.
+- **What was changed:** `dedup.py` attempts to build a `faiss.IndexFlatIP` backed by `sentence-transformers/all-MiniLM-L6-v2`; if the heavy deps fail to import or the model download fails, it falls back to `difflib.SequenceMatcher` string-ratio dedup with the same threshold. The fallback is logged once at runtime.
+- **Reason:** `faiss-cpu` has known Windows install friction; tests must remain runnable without the ML stack. Production scans with deps installed still use real FAISS as specified.
+- **architecture.md updated:** NO
+
+### MODULE — Mutation Engine (6-strategy rewrite)
+- **Date:** 2026-04-17
+- **Sprint:** 2
+- **File(s) Created/Modified:**
+  - Created: `backend/app/core/engine/hf_client.py`, `backend/app/core/engine/dedup.py`, `backend/tests/test_mutation_engine.py`
+  - Rewritten: `backend/app/core/engine/mutation.py` (stub → full 6-strategy engine with lineage + dedup)
+  - Modified: `backend/app/core/attack_executor.py`, `backend/app/config.py`, `backend/requirements.txt`, `frontend/src/pages/RunDetail.tsx`
+- **Key Decisions Made:**
+  - All 6 architecture-mandated strategies implemented: `paraphrase`, `encode_b64`, `encode_rot13`, `encode_unicode`, `lang_switch`, `chain`.
+  - `paraphrase` and `lang_switch` route through `HFClient` (HuggingFace Inference Endpoint); if `HF_API_TOKEN` is unset the engine silently skips those strategies so deterministic mutation still works out-of-the-box.
+  - `MutatedVariant` dataclass carries `(text, strategy, depth, parent_text)` so the executor can persist `PromptVariant.parent_id`, `strategy_applied`, and `depth` per architecture.md §4.
+  - Depth semantics: each level mutates the previous layer's outputs (true mutation tree), not flat re-application on the baseline.
+  - Executor now persists the baseline as its own `PromptVariant` (depth=0, strategy_applied="baseline") so Sprint 6 baseline-vs-mutant ASR computation can read directly from the DB.
+  - Fixed latent `NameError`: dead `analysis_engine = AnalysisEngine()` line in prior executor (referenced an unimported class) — removed.
+  - Scan start now honours `mutation_strategies` + `mutation_depth` from `ScanRunCreate` (previously parsed into DB but ignored by the executor).
+  - Frontend `RunDetail` page gained a strategy multi-select + depth slider (1–4) in the Actions card. Uses brand tokens `#0461E2` (Primary Blue) and `#1B2771` (Dark Navy) per branding.md §3.
+- **Deviations from architecture.md:** Two, logged above (file location, FAISS fallback).
+- **Prototype Code Reused:** The original `MutationEngine.mutate(budget=...)` signature and its B64 template were referenced; everything else was rewritten from scratch.
+- **Known Limitations / TODOs:**
+  - `TODO(sprint-4)`: seed FAISS index from the KB templates so `MutationEngine` can do KB-guided generation (PRD §4.3 last bullet).
+  - `TODO(sprint-6)`: surface the new `strategy_applied` column in the Run Detail variant table and add a lineage viz.
+  - Integration with real HF endpoints is untested without credentials — pending supervisor's manual `HF_API_TOKEN` verification.
 
 ---
 

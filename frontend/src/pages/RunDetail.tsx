@@ -21,12 +21,29 @@ interface ScanRun {
     vulnerabilities_found: number
 }
 
+const MUTATION_STRATEGIES: { id: string; label: string }[] = [
+    { id: 'paraphrase', label: 'Paraphrase (HF)' },
+    { id: 'encode_b64', label: 'Base64 Encoding' },
+    { id: 'encode_rot13', label: 'ROT13' },
+    { id: 'encode_unicode', label: 'Unicode Obfuscation' },
+    { id: 'lang_switch', label: 'Language Switch (HF)' },
+    { id: 'chain', label: 'Multi-Step Chain' },
+]
+
 export function RunDetail() {
     const { id } = useParams()
     const [target, setTarget] = useState<TLLMProfile | null>(null)
     const [scans, setScans] = useState<ScanRun[]>([])
     const [loading, setLoading] = useState(true)
     const [startingRun, setStartingRun] = useState(false)
+    const [selectedStrategies, setSelectedStrategies] = useState<string[]>(['encode_b64', 'encode_rot13'])
+    const [mutationDepth, setMutationDepth] = useState<number>(1)
+
+    const toggleStrategy = (strategyId: string) => {
+        setSelectedStrategies(prev =>
+            prev.includes(strategyId) ? prev.filter(s => s !== strategyId) : [...prev, strategyId]
+        )
+    }
 
     useEffect(() => {
         // Fetch Target Details
@@ -58,8 +75,8 @@ export function RunDetail() {
             const res = await apiClient.post('/scans/start', {
                 tllm_profile_id: target.id,
                 attack_classes: ['prompt_injection'],
-                mutation_strategies: ['none'],
-                mutation_depth: 1
+                mutation_strategies: selectedStrategies.length ? selectedStrategies : ['none'],
+                mutation_depth: mutationDepth,
             })
 
             if (res.data?.id) {
@@ -149,12 +166,55 @@ export function RunDetail() {
 
                 <div className="space-y-6">
                     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <h2 className="text-lg font-semibold mb-4">Mutation Engine</h2>
+                        <div className="space-y-4 mb-5">
+                            <div>
+                                <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+                                    Strategies
+                                </label>
+                                <div className="space-y-1.5">
+                                    {MUTATION_STRATEGIES.map(s => (
+                                        <label
+                                            key={s.id}
+                                            className="flex items-center gap-2 text-sm text-gray-800 cursor-pointer hover:text-[#0461E2]"
+                                        >
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedStrategies.includes(s.id)}
+                                                onChange={() => toggleStrategy(s.id)}
+                                                className="h-4 w-4 rounded border-gray-300 text-[#0461E2] focus:ring-[#0461E2]"
+                                            />
+                                            <span>{s.label}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+                            <div>
+                                <div className="flex items-center justify-between mb-1">
+                                    <label className="block text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                        Mutation Depth
+                                    </label>
+                                    <span className="text-sm font-mono font-semibold text-[#1B2771]">{mutationDepth}</span>
+                                </div>
+                                <input
+                                    type="range"
+                                    min={1}
+                                    max={4}
+                                    value={mutationDepth}
+                                    onChange={e => setMutationDepth(parseInt(e.target.value, 10))}
+                                    className="w-full accent-[#0461E2] cursor-pointer"
+                                />
+                                <div className="flex justify-between text-[10px] text-gray-400 mt-1">
+                                    <span>1</span><span>2</span><span>3</span><span>4</span>
+                                </div>
+                            </div>
+                        </div>
                         <h2 className="text-lg font-semibold mb-4">Actions</h2>
                         <div className="space-y-3">
                             <button
                                 onClick={handleStartRun}
                                 disabled={startingRun}
-                                className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                                className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
                             >
                                 <Play className="h-4 w-4" />
                                 {startingRun ? 'Starting...' : 'Start Attack'}

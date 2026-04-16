@@ -415,13 +415,36 @@ Rebuilding clean with the architecture defined in `architecture.md` produces a m
 
 ### Sprint 2 — Mutation Engine
 
-✅ **Status:** Completed  
-**Planned:** Nov 1–15, 2025
+🟡 **Status:** Implementation complete — pending manual verification  
+**Planned:** Nov 1–15, 2025  
+**Implemented:** 2026-04-17
 
-**Key Decisions to Document Here:**
-- Utilized rule-based structural shifts alongside basic injections (Base64, JSON wrap, framing, leetspeak).
+**Key Decisions:**
+- Rewrote the prototype's 5-rule stub (Base64 / leetspeak / JSON wrap / framing) into a PRD-compliant 6-strategy engine: `paraphrase`, `encode_b64`, `encode_rot13`, `encode_unicode`, `lang_switch`, `chain` (architecture.md §3.2).
+- Added `HFClient` wrapper (`backend/app/core/engine/hf_client.py`) for HuggingFace Inference Endpoints (paraphrase + round-trip translation). `HF_API_TOKEN` optional — HF-dependent strategies degrade gracefully when unavailable, deterministic strategies always run.
+- Implemented FAISS cosine dedup (`dedup.py`) with threshold `0.95` per architecture, backed by `sentence-transformers/all-MiniLM-L6-v2`. Lazy-imported; falls back to `difflib.SequenceMatcher` if `faiss-cpu` / `sentence-transformers` are not installed, logged once at runtime.
+- Introduced `MutatedVariant` dataclass (`text`, `strategy`, `depth`, `parent_text`) — the executor now persists `PromptVariant.parent_id` and the specific `strategy_applied` (not just "mutation"/"baseline") per architecture.md §4.
+- Strategies iterate over the previous depth's layer so depth=N produces a true tree, not flat repetition.
+- Baseline variant is now persisted as its own `PromptVariant` (depth=0, strategy_applied="baseline") so ASR metrics in Sprint 6 can compute baseline-vs-mutant delta directly from DB.
 
-**Actual Outcomes:** The `MutationEngine` successfully extends baseline prompts dynamically prior to network dispatch.  
+**Trade-offs Logged in §6.1:** FAISS vs difflib dedup fallback (see Master Trade-off Log).
+
+**Actual Outcomes:**
+- 6-strategy engine live; full lineage graph persisted per run.
+- Scan start endpoint now consumes `mutation_strategies` + `mutation_depth` from `ScanRunCreate` and propagates them through the executor (previously ignored).
+- Frontend `RunDetail` page exposes a strategy multi-select + depth slider (1–4) using SECUSYNC brand tokens (`#0461E2`, `#1B2771`).
+- `test_mutation_engine.py` added — covers strategy roster, deterministic outputs, HF-missing graceful skip, dedup correctness, lineage fields, empty inputs, and depth growth (7 tests).
+
+**Deviations from Plan:**
+- `mutation_engine.py` located at `backend/app/core/engine/mutation.py` (pre-existing from prototype port) rather than `backend/app/core/mutation_engine.py` as specified in architecture.md §2. Will be reconciled in Sprint 7 cleanup. Logged in History.md.
+- `faiss-cpu` has Windows install friction; the difflib fallback is the documented contingency.
+
+**Exit Criteria (PRD-aligned):** Pending manual verification by supervisor:
+- [ ] A scan with depth=2 produces noticeably different prompt variants
+- [ ] Deduplication discards near-identical variants (test verified ✅)
+- [ ] Parent-child lineage is stored and queryable (test verified ✅)
+- [ ] All tests pass at ≥ 80% coverage
+
 
 ---
 

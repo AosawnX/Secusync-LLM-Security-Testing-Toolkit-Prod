@@ -5,7 +5,12 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     DATABASE_URL: str = "sqlite:///./secusync.db"
 
-    # We will add other keys here later (e.g. OPENAI_API_KEY, ANTHROPIC_API_KEY)
+    HF_API_TOKEN: str | None = None
+    HF_PARAPHRASE_ENDPOINT: str = "https://api-inference.huggingface.co/models/tuner007/pegasus_paraphrase"
+    HF_TRANSLATE_EN_FR_ENDPOINT: str = "https://api-inference.huggingface.co/models/Helsinki-NLP/opus-mt-en-fr"
+    HF_TRANSLATE_FR_EN_ENDPOINT: str = "https://api-inference.huggingface.co/models/Helsinki-NLP/opus-mt-fr-en"
+    MUTATION_DEDUP_THRESHOLD: float = 0.95
+    MUTATION_EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
     
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
