@@ -103,7 +103,11 @@ def test_empty_inputs_return_no_variants():
 
 
 def test_depth_increases_variant_count():
-    engine = MutationEngine(hf_client=_FakeHF(available=False), dedup=_DifflibDedup(threshold=0.999))
-    depth_one = _run(engine.mutate("payload", ["encode_b64", "chain"], depth=1))
-    depth_two = _run(engine.mutate("payload", ["encode_b64", "chain"], depth=2))
+    # Use SEPARATE engines so each mutate() call starts with a clean dedup
+    # index. Reusing one engine would poison the second call because the
+    # first run's variants are already recorded as duplicates.
+    engine_one = MutationEngine(hf_client=_FakeHF(available=False), dedup=_DifflibDedup(threshold=0.999))
+    engine_two = MutationEngine(hf_client=_FakeHF(available=False), dedup=_DifflibDedup(threshold=0.999))
+    depth_one = _run(engine_one.mutate("payload", ["encode_b64", "chain"], depth=1))
+    depth_two = _run(engine_two.mutate("payload", ["encode_b64", "chain"], depth=2))
     assert len(depth_two) > len(depth_one)

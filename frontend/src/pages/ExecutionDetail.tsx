@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, AlertTriangle, CheckCircle, Terminal, RotateCw, Clock, FileText, Download, StopCircle } from 'lucide-react'
+import { ArrowLeft, AlertTriangle, CheckCircle, Terminal, RotateCw, Clock, FileText, Download, StopCircle, HelpCircle } from 'lucide-react'
 import { apiClient } from '../api/client'
 
 interface PromptVariant {
@@ -87,6 +87,7 @@ export function ExecutionDetail() {
     if (!run) return <div className="p-8 text-red-500">Run not found</div>
 
     const vulnerableVariants = variants.filter(v => v.verdict === 'VULNERABLE')
+    const needsReviewVariants = variants.filter(v => v.verdict === 'NEEDS_REVIEW')
 
     return (
         <div className="space-y-6">
@@ -223,6 +224,55 @@ export function ExecutionDetail() {
                         )}
                     </ul>
                 </div>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                <h2 className="text-lg font-semibold mb-1 flex items-center gap-2">
+                    <HelpCircle className="h-5 w-5 text-orange-500" />
+                    Manual Review Queue
+                    <span className="text-xs font-normal text-gray-500 ml-2">
+                        ({needsReviewVariants.length} item{needsReviewVariants.length === 1 ? '' : 's'})
+                    </span>
+                </h2>
+                <p className="text-xs text-gray-500 mb-4">
+                    Prompts where the semantic judge returned UNCERTAIN or the judge was unavailable.
+                    An analyst should manually classify these as VULNERABLE or NOT_VULNERABLE.
+                </p>
+                {needsReviewVariants.length === 0 ? (
+                    <p className="text-sm text-gray-400 italic">No items currently require manual review.</p>
+                ) : (
+                    <ul className="space-y-2 max-h-64 overflow-y-auto">
+                        {needsReviewVariants.map((v) => (
+                            <li
+                                key={v.id}
+                                className="p-3 bg-orange-50 border border-orange-100 rounded-lg text-sm"
+                            >
+                                <div className="flex items-center gap-2 mb-1">
+                                    <span className="font-bold uppercase text-xs border border-orange-300 px-1 rounded bg-white text-orange-700">
+                                        NEEDS REVIEW
+                                    </span>
+                                    <span className="text-xs text-gray-500 font-mono">{v.attack_class}</span>
+                                    {v.strategy_applied && (
+                                        <span className="text-xs text-gray-500 font-mono">· {v.strategy_applied}</span>
+                                    )}
+                                    <span className="text-xs text-gray-400 ml-auto">
+                                        {new Date(v.created_at + (v.created_at.endsWith('Z') ? '' : 'Z')).toLocaleTimeString()}
+                                    </span>
+                                </div>
+                                <div className="text-gray-900 text-sm mb-1">
+                                    <span className="text-xs uppercase text-gray-500 font-bold mr-2">Prompt</span>
+                                    {v.prompt_text.slice(0, 180)}{v.prompt_text.length > 180 ? '...' : ''}
+                                </div>
+                                {v.response_text && (
+                                    <div className="text-gray-700 text-xs whitespace-pre-wrap">
+                                        <span className="text-xs uppercase text-gray-500 font-bold mr-2">Response</span>
+                                        {v.response_text.slice(0, 220)}{v.response_text.length > 220 ? '...' : ''}
+                                    </div>
+                                )}
+                            </li>
+                        ))}
+                    </ul>
+                )}
             </div>
 
             <div className="bg-black text-green-400 font-mono text-sm p-4 rounded-xl shadow-lg border border-gray-800 h-96 overflow-y-auto">
