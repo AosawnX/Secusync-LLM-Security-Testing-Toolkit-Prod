@@ -360,6 +360,36 @@ This file is updated by the AI agent in two situations:
 
 ---
 
+### DEVIATION — Per-user data isolation (row-level ownership)
+- **Date:** 2026-04-18
+- **Sprint:** Inter-sprint (Firebase Auth follow-up)
+- **Context:** With authentication working, every authenticated user was still able to read, modify, and delete every other user's targets / scans / results / reports. That's a single-tenant assumption that the Firebase Auth rollout silently broke — auth only proves "who you are", not "what you can see".
+- **Decision:** Enforce row-level ownership at the database and router layer. Every ownable row carries `user_id` (the Firebase uid) and every query is scoped by it.
+- **Files changed:**
+  - `backend/app/models/tllm_profile.py`, `scan_run.py`, `prompt_variant.py` — added `user_id` column (nullable=False, indexed).
+  - `backend/app/dependencies.py` — added `current_uid` dep + `get_owned_profile` / `get_owned_run` helpers that 404 on ownership mismatch (NOT 403 — a 403 would let an attacker enumerate UUIDs).
+  - `backend/app/routers/tllm.py`, `scans.py` — every read filtered by `user_id`, every write stamped with `user_id`. Scan creation now verifies the referenced TLLM profile belongs to the caller.
+  - `backend/app/core/attack_executor.py` — TLLMProfile lookup scoped by the scan's owner; PromptVariants inserted carry `user_id=run.user_id`.
+  - `backend/alembic/versions/2026_04_18_add_user_id.py` — migration adds the three columns + indexes, backfills pre-auth rows with sentinel `legacy-pre-auth` (invisible to any real Firebase uid).
+- **Security invariants:**
+  1. Router-level: every handler takes `uid: str = Depends(current_uid)` and either filters queries by `user_id == uid` or uses the `get_owned_*` helpers.
+  2. Executor-level: background scan task inherits `user_id` from the run row it was scheduled for; no auth context needed inside.
+  3. Defence-in-depth: `PromptVariant` carries a denormalised `user_id` so the hot read path for results / reports filters on a single indexed column, making "forgot to join scan_runs" bugs impossible to hide.
+  4. Status codes: ownership mismatch → `404 Not Found`, never `403 Forbidden`. This prevents UUID enumeration attacks.
+- **Shared resources that stay global:** `kb_entries` (attack-template seed data — read-only, identical for every user).
+- **Filesystem artefacts (`runs/<run_id>/`):** still unguessable UUIDv4 paths AND the report endpoints that read them are now ownership-scoped. No direct filesystem-exposure router exists.
+- **Manual verification plan:**
+  - Account A creates target T_A, runs scan S_A.
+  - Account B (separate email) signs in.
+  - `GET /api/tllm/profiles` for B must not contain T_A.
+  - `GET /api/scans/all` for B must not contain S_A.
+  - `GET /api/scans/{S_A.id}` with B's token → 404.
+  - `GET /api/scans/{S_A.id}/report/executive` with B's token → 404.
+  - `POST /api/scans/start` with `{tllm_profile_id: T_A.id}` as B → 404.
+- **Regression tests added:** None in this pass — the change touches router-level plumbing and is best verified by the two-account manual check above. A proper pytest suite with stubbed Firebase tokens is deferred to Sprint 7 hardening.
+
+---
+
 ### BUG — .env not loaded on startup, Firebase init silently failed (sign-in bounce returns)
 - **Date:** 2026-04-18
 - **Sprint:** Inter-sprint (Firebase Auth follow-up)

@@ -7,6 +7,10 @@ class PromptVariant(Base):
     __tablename__ = "prompt_variants"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    # Denormalised copy of scan_runs.user_id for defence-in-depth — lets the
+    # hot read path filter variants by user without an extra JOIN, and makes
+    # "forgot one filter" bugs impossible to hide.
+    user_id = Column(String, nullable=False, index=True)
     scan_run_id = Column(String, nullable=False)
     parent_id = Column(String, nullable=True)
     attack_class = Column(String, nullable=False)

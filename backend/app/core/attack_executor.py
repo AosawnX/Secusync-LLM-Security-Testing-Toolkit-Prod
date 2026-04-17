@@ -79,7 +79,16 @@ async def execute_scan_run(run_id: str, db: Session):
         run.status = "RUNNING"
         db.commit()
 
-        profile = db.query(TLLMProfile).filter(TLLMProfile.id == run.tllm_profile_id).first()
+        # Scope the profile fetch by the scan's owner — if the profile has
+        # been deleted or was somehow mis-linked we must not leak it.
+        profile = (
+            db.query(TLLMProfile)
+            .filter(
+                TLLMProfile.id == run.tllm_profile_id,
+                TLLMProfile.user_id == run.user_id,
+            )
+            .first()
+        )
         if not profile:
             raise Exception("TLLM Profile not found")
 
@@ -122,6 +131,7 @@ async def execute_scan_run(run_id: str, db: Session):
 
                 # Persist the baseline variant first — all mutants descend from it.
                 baseline_variant = PromptVariant(
+                    user_id=run.user_id,  # denormalised — matches the run's owner
                     scan_run_id=run.id,
                     parent_id=None,
                     attack_class=attack_class,
@@ -148,6 +158,7 @@ async def execute_scan_run(run_id: str, db: Session):
                     for mv in mutated:
                         parent_id = parent_map.get(mv.parent_text, baseline_variant.id)
                         row = PromptVariant(
+                            user_id=run.user_id,  # inherit ownership from the scan run
                             scan_run_id=run.id,
                             parent_id=parent_id,
                             attack_class=attack_class,

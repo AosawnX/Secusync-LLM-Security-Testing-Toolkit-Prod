@@ -7,6 +7,9 @@ class TLLMProfile(Base):
     __tablename__ = "tllm_profiles"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    # Firebase uid of the user who owns this target. Every query MUST filter
+    # by this column to prevent cross-tenant data leaks.
+    user_id = Column(String, nullable=False, index=True)
     name = Column(String, nullable=False)
     provider = Column(String, nullable=False) # openai, anthropic, ollama, custom
     endpoint_url = Column(String, nullable=True)
