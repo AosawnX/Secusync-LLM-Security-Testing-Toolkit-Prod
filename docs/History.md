@@ -278,3 +278,20 @@ This file is updated by the AI agent in two situations:
   - `check_revoked=True` in `verify_id_token` — revoked tokens in Firebase Console are rejected within seconds
   - HTTP 401 interceptor on the frontend auto-signs-out the user if the backend rejects their session
 - **architecture.md updated:** NO (auth was not in original spec; deferred to Sprint 7 architectural reconciliation)
+
+---
+
+### BUG — Firebase Admin SDK double-init race on first concurrent requests
+- **Date:** 2026-04-17
+- **Sprint:** Inter-sprint (Firebase Auth)
+- **Severity:** Blocker — authenticated users were immediately signed back out
+- **Symptom:** After successful sign-up or sign-in, the dashboard would flash briefly then redirect back to `/login`. Firebase Console showed the user was created correctly, so auth on the client side worked. Backend logs revealed every `/api/*` call returned HTTP 401.
+- **Root cause:** `backend/app/core/firebase_auth.py::_get_app()` used `@lru_cache(maxsize=1)` to memoise Firebase Admin SDK initialisation. On the very first dashboard render, the frontend fires two concurrent GETs (`/api/scans/all` and `/api/tllm/profiles`) before the cache is populated. Both request-handler threads enter the function body simultaneously, both call `firebase_admin.initialize_app(cred)`, and the second call raises `ValueError: The default Firebase app already exists`. The broad `except Exception` in `verify_token` converted that into `FirebaseAuthError` → `HTTPException(401)`. The axios 401 interceptor then force-signed-out the user → redirect to `/login`.
+- **Fix:**
+  1. Replaced `@lru_cache` with an idempotent pattern: `_get_app()` now calls `firebase_admin.get_app()` first (raises `ValueError` if no default app exists) and only falls through to `initialize_app()` when needed, guarded by a `threading.Lock()` with double-checked locking inside the critical section.
+  2. Added a FastAPI `@app.on_event("startup")` hook in `backend/app/main.py` that calls `_get_app()` once during server boot. This ensures the SDK is already registered before the first request arrives, eliminating the cold-start race window entirely.
+- **Files changed:** `backend/app/core/firebase_auth.py`, `backend/app/main.py`
+- **Verification:**
+  - `GET /api/scans/all` with no auth → `401 {"detail":"Not authenticated"}` ✓
+  - `GET /api/scans/all` with `Bearer fake-token` → `401 {"detail":"Invalid or expired authentication token"}` ✓
+  - End-to-end sign-in now persists the session and lands the user on the dashboard.
