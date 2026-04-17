@@ -5,12 +5,14 @@ from app.models.scan_run import ScanRun
 from app.models.prompt_variant import PromptVariant
 from app.schemas.scan import ScanRunCreate, ScanRunResponse, PromptVariantResponse
 from app.core.attack_executor import execute_scan_run
+from app.dependencies import get_current_user
 from typing import List
 import json
 
 router = APIRouter(
     prefix="/api/scans",
-    tags=["Scans"]
+    tags=["Scans"],
+    dependencies=[Depends(get_current_user)],  # all routes require auth
 )
 
 @router.get("/all", response_model=List[ScanRunResponse])
@@ -44,6 +46,19 @@ def execute_scan_run_wrapper(run_id: str):
         asyncio.run(execute_scan_run(run_id, db))
     finally:
         db.close()
+
+@router.post("/{run_id}/stop", response_model=ScanRunResponse)
+def stop_scan(run_id: str, db: Session = Depends(get_db)):
+    run = db.query(ScanRun).filter(ScanRun.id == run_id).first()
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    if run.status in ("COMPLETED", "FAILED", "STOPPED"):
+        return run
+    run.status = "STOPPING"
+    db.commit()
+    db.refresh(run)
+    return run
+
 
 @router.get("/{run_id}/results", response_model=List[PromptVariantResponse])
 def get_scan_results(run_id: str, db: Session = Depends(get_db)):

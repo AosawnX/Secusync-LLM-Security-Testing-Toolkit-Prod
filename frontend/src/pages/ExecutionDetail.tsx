@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, AlertTriangle, CheckCircle, Terminal, RotateCw, Clock, FileText, Download } from 'lucide-react'
+import { ArrowLeft, AlertTriangle, CheckCircle, Terminal, RotateCw, Clock, FileText, Download, StopCircle } from 'lucide-react'
 import { apiClient } from '../api/client'
 
 interface PromptVariant {
@@ -33,6 +33,25 @@ export function ExecutionDetail() {
     const [run, setRun] = useState<ScanRun | null>(null)
     const [loading, setLoading] = useState(true)
     const [variants, setVariants] = useState<PromptVariant[]>([])
+    const [stopping, setStopping] = useState(false)
+
+    const ACTIVE_STATUSES = ['PENDING', 'RUNNING', 'STOPPING']
+    const isActive = run ? ACTIVE_STATUSES.includes(run.status) : false
+
+    const handleStopScan = async () => {
+        if (!run || stopping) return
+        if (!window.confirm('Stop this scan? Partial results will be saved.')) return
+        setStopping(true)
+        try {
+            const res = await apiClient.post(`/scans/${run.id}/stop`)
+            setRun(res.data)
+        } catch (err) {
+            console.error(err)
+            alert('Failed to stop scan')
+        } finally {
+            setStopping(false)
+        }
+    }
 
     useEffect(() => {
         let intervalId: ReturnType<typeof setInterval>
@@ -49,7 +68,7 @@ export function ExecutionDetail() {
                     setVariants(varRes.data)
                 }
 
-                if (res.data.status === 'COMPLETED' || res.data.status === 'FAILED') {
+                if (['COMPLETED', 'FAILED', 'STOPPED'].includes(res.data.status)) {
                     clearInterval(intervalId)
                 }
             } catch (err) {
@@ -80,6 +99,7 @@ export function ExecutionDetail() {
                         Scan Execution
                         <span className={`px-3 py-1 text-sm rounded-full border ${run.status === 'COMPLETED' ? 'bg-green-50 text-green-700 border-green-100' :
                             run.status === 'FAILED' ? 'bg-red-50 text-red-700 border-red-100' :
+                            run.status === 'STOPPED' ? 'bg-gray-100 text-gray-700 border-gray-200' :
                                 'bg-yellow-50 text-yellow-700 border-yellow-100'
                             }`}>
                             {run.status}
@@ -110,6 +130,16 @@ export function ExecutionDetail() {
                             <Download className="h-4 w-4" />
                             <span>PoC ZIP</span>
                         </button>
+                        {isActive && (
+                            <button
+                                onClick={handleStopScan}
+                                disabled={stopping || run.status === 'STOPPING'}
+                                className="bg-[#DC2626] hover:bg-red-700 text-white font-bold py-2 px-4 rounded inline-flex items-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                            >
+                                <StopCircle className="h-4 w-4" />
+                                <span>{run.status === 'STOPPING' ? 'Stopping...' : 'Stop Scan'}</span>
+                            </button>
+                        )}
                         <button
                             onClick={async () => {
                                 if (!run) return
@@ -128,7 +158,8 @@ export function ExecutionDetail() {
                                     alert("Error restarting scan")
                                 }
                             }}
-                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded inline-flex items-center gap-2 cursor-pointer"
+                            disabled={isActive}
+                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded inline-flex items-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                         >
                             <RotateCw className="h-4 w-4" />
                             <span>Retry Attack</span>
@@ -212,7 +243,6 @@ export function ExecutionDetail() {
                                 <div className="text-gray-300 pl-4 mt-1 whitespace-pre-wrap">
                                     {variant.response_text || '(no response)'}
                                 </div>
-                                <div className="pl-4 mt-2 flex gap-4">
                                 <div className="pl-4 mt-2 flex gap-4">
                                     <div className="flex-1 border border-gray-800 rounded p-2 bg-gray-900/50">
                                         <div className="text-xs uppercase text-gray-500 font-bold mb-1">Verdict</div>

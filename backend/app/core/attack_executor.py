@@ -16,8 +16,15 @@ from app.models.prompt_variant import PromptVariant
 from app.core.tllm_connector import TLLMConnector
 from app.core.engine.mutation import MutationEngine, STRATEGIES
 from app.core.analysis.hybrid import HybridAnalysisEngine
+from app.config import settings
 
 RUNS_DIR = "runs"
+
+
+def _is_cancelled(db: Session, run: ScanRun) -> bool:
+    """Re-read status from DB to pick up an external STOPPING flag."""
+    db.refresh(run)
+    return run.status == "STOPPING"
 
 
 def load_baseline_prompts(attack_classes: list[str]) -> list[dict]:
@@ -84,14 +91,31 @@ async def execute_scan_run(run_id: str, db: Session):
         requested_strategies = _parse_list(run.mutation_strategies)
         active_strategies = [s for s in requested_strategies if s in STRATEGIES]
         depth = run.mutation_depth if run.mutation_depth else 1
+        max_variants = settings.MAX_VARIANTS_PER_RUN
+        delay_s = max(0.0, settings.SCAN_REQUEST_DELAY_MS / 1000.0)
 
         templates = load_baseline_prompts(attack_classes)
 
         total_sent = 0
         vulnerabilities_found = 0
+        stopped_early = False
+
+        # Edge case: no baseline templates match the selected attack classes.
+        if not templates:
+            run.status = "COMPLETED"
+            run.completed_at = datetime.now(timezone.utc)
+            run.total_prompts_sent = 0
+            run.vulnerabilities_found = 0
+            db.commit()
+            return
 
         with open(log_path, "w", encoding="utf-8") as log_file:
             for template in templates:
+                if _is_cancelled(db, run):
+                    stopped_early = True
+                    break
+                if total_sent >= max_variants:
+                    break
                 baseline_text = template["template"]
                 attack_class = template["attack_class"]
                 source_title = template.get("title", "unknown")
@@ -113,10 +137,12 @@ async def execute_scan_run(run_id: str, db: Session):
                 variants_to_run: list[PromptVariant] = [baseline_variant]
 
                 if active_strategies:
+                    remaining_budget = max_variants - total_sent - len(variants_to_run)
                     mutated = await mutation_engine.mutate(
                         baseline=baseline_text,
                         strategies=active_strategies,
                         depth=depth,
+                        max_variants=max(0, remaining_budget),
                     )
                     parent_map: dict[str, str] = {baseline_text: baseline_variant.id}
                     for mv in mutated:
@@ -137,9 +163,14 @@ async def execute_scan_run(run_id: str, db: Session):
                         variants_to_run.append(row)
 
                 for variant in variants_to_run:
+                    if _is_cancelled(db, run):
+                        stopped_early = True
+                        break
+                    if total_sent >= max_variants:
+                        break
                     total_sent += 1
                     try:
-                        await asyncio.sleep(0.5)
+                        await asyncio.sleep(delay_s)
                         response = await connector.send(variant.prompt_text)
                         variant.response_text = response
 
@@ -172,8 +203,10 @@ async def execute_scan_run(run_id: str, db: Session):
                         variant.response_text = f"Error: {str(e)}"
                         variant.verdict = "NEEDS_REVIEW"
                     db.commit()
+                if stopped_early:
+                    break
 
-        run.status = "COMPLETED"
+        run.status = "STOPPED" if stopped_early else "COMPLETED"
         run.completed_at = datetime.now(timezone.utc)
         run.total_prompts_sent = total_sent
         run.vulnerabilities_found = vulnerabilities_found

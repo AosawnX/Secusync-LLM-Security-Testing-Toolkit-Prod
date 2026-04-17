@@ -245,3 +245,36 @@ This file is updated by the AI agent in two situations:
 ## Cross-Sprint Issues / Architectural Notes
 
 *(Agent: log any issue or decision that affects multiple sprints here)*
+
+---
+
+### DEVIATION — Firebase Auth (Out-of-Sprint User Authentication)
+- **Date:** 2026-04-17
+- **Sprint:** Inter-sprint (between Sprint 2 and Sprint 3, user-requested)
+- **Original architecture.md specification:** No authentication layer was specified in architecture.md §3 or the PRD sprint plan. The original design assumed single-user local deployment with no session management.
+- **What was changed:** Full Firebase Authentication layer added across frontend and backend:
+  - **Frontend (7 files):**
+    - `frontend/src/firebase.ts` — Firebase JS SDK initialisation
+    - `frontend/src/context/AuthContext.tsx` — `onAuthStateChanged` + `getIdToken()` provider
+    - `frontend/src/pages/Login.tsx` — Email/password login + register page (SECUSYNC brand tokens)
+    - `frontend/src/components/RequireAuth.tsx` — Route guard; redirects to `/login` if unauthenticated, shows spinner during session resolution to prevent flash
+    - `frontend/src/api/client.ts` — Axios interceptor: attaches `Authorization: Bearer <idToken>` to every request; auto sign-out on HTTP 401
+    - `frontend/src/App.tsx` — Added `<AuthProvider>` wrapper and `/login` public route; all other routes wrapped in `<RequireAuth>`
+    - `frontend/src/layouts/MainLayout.tsx` — Added user email display and Sign Out button (sidebar footer)
+  - **Backend (4 files):**
+    - `backend/app/core/firebase_auth.py` — `verify_token()` using `firebase_admin.auth.verify_id_token(check_revoked=True)`; initialises SDK lazily via `lru_cache`; catches and wraps all Firebase exceptions into `FirebaseAuthError` (no internal details leaked to callers)
+    - `backend/app/dependencies.py` — `get_current_user` FastAPI dependency; `HTTPBearer` extractor; returns decoded token claims dict; raises HTTP 401 with a generic message on failure
+    - `backend/app/routers/scans.py` — `dependencies=[Depends(get_current_user)]` added to router
+    - `backend/app/routers/tllm.py` — `dependencies=[Depends(get_current_user)]` added to router
+  - **Config / dependencies:**
+    - `backend/app/config.py` — `FIREBASE_SERVICE_ACCOUNT_PATH: str = ""` env var
+    - `backend/requirements.txt` — `firebase-admin==7.4.0`
+    - `.gitignore` — Added patterns: `*firebase-adminsdk*.json`, `*-adminsdk-*.json`, `firebase-service-account.json`, `serviceAccountKey.json`
+- **Reason:** User requested auth to protect the API and enable multi-user use. Firebase Auth was selected for minimal implementation surface: no custom JWT logic, no password storage, no sessions table — all offloaded to Google Firebase with RS256 token verification on the backend.
+- **Security decisions:**
+  - Firebase client API key intentionally left in source (it is a public identifier by Firebase design; actual security is enforced via Firebase Authorized Domains + server-side token verification)
+  - Service account JSON path read from `FIREBASE_SERVICE_ACCOUNT_PATH` env var; file itself is gitignored and never committed
+  - Token details never forwarded to API clients in error responses (generic 401 message only)
+  - `check_revoked=True` in `verify_id_token` — revoked tokens in Firebase Console are rejected within seconds
+  - HTTP 401 interceptor on the frontend auto-signs-out the user if the backend rejects their session
+- **architecture.md updated:** NO (auth was not in original spec; deferred to Sprint 7 architectural reconciliation)

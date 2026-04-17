@@ -15,3 +15,5 @@ sentence-transformers==3.0.1  # embeddings for FAISS dedup
 faiss-cpu==1.8.0.post1        # vector similarity dedup (architecture.md §3.2)
 # NOTE: if faiss/sentence-transformers fail to install, engine falls back
 # to difflib string-ratio dedup (logged at runtime). See History.md.
+# Auth — Firebase Admin SDK for server-side ID token verification
+firebase-admin==7.4.0

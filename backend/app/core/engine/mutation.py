@@ -95,6 +95,7 @@ class MutationEngine:
         baseline: str,
         strategies: list[str],
         depth: int = 1,
+        max_variants: int | None = None,
     ) -> list[MutatedVariant]:
         if depth < 1 or not strategies:
             return []
@@ -109,9 +110,15 @@ class MutationEngine:
         current_layer: list[tuple[str, str]] = [(baseline, baseline)]  # (text, original_parent)
 
         for d in range(1, depth + 1):
+            if max_variants is not None and len(variants) >= max_variants:
+                break
             next_layer: list[tuple[str, str]] = []
             for parent_text, _root in current_layer:
+                if max_variants is not None and len(variants) >= max_variants:
+                    break
                 for strategy in active:
+                    if max_variants is not None and len(variants) >= max_variants:
+                        break
                     produced = await self._apply(strategy, parent_text)
                     if not produced or produced == parent_text:
                         continue

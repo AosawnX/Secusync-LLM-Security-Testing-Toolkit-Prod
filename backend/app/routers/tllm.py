@@ -3,11 +3,13 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.tllm_profile import TLLMProfile
 from app.schemas.tllm import TLLMProfileCreate, TLLMProfileResponse
+from app.dependencies import get_current_user
 from typing import List
 
 router = APIRouter(
     prefix="/api/tllm/profiles",
-    tags=["TLLM Profiles"]
+    tags=["TLLM Profiles"],
+    dependencies=[Depends(get_current_user)],  # all routes require auth
 )
 
 @router.post("", response_model=TLLMProfileResponse)

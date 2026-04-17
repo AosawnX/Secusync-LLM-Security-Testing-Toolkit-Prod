@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Play, Activity, Clock } from 'lucide-react'
+import { ArrowLeft, Play, Activity } from 'lucide-react'
 import { apiClient } from '../api/client'
 
 interface TLLMProfile {
