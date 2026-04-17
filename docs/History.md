@@ -357,3 +357,19 @@ This file is updated by the AI agent in two situations:
   - `GET /api/scans/all` with no auth → `401 {"detail":"Not authenticated"}` ✓
   - `GET /api/scans/all` with `Bearer fake-token` → `401 {"detail":"Invalid or expired authentication token"}` ✓
   - End-to-end sign-in now persists the session and lands the user on the dashboard.
+
+---
+
+### BUG — .env not loaded on startup, Firebase init silently failed (sign-in bounce returns)
+- **Date:** 2026-04-18
+- **Sprint:** Inter-sprint (Firebase Auth follow-up)
+- **Severity:** Blocker — same user-facing symptom as the double-init bug returned in a different guise
+- **Symptom:** After signing up / signing in, dashboard flashed briefly then bounced back to `/login` — identical to the earlier double-init race, but occurring on a clean run.
+- **Root cause:** `backend/app/main.py` and `backend/app/core/firebase_auth.py` both read `FIREBASE_SERVICE_ACCOUNT_PATH` via `os.getenv(...)`, but nothing in the import chain calls `load_dotenv()`. Pydantic's `SettingsConfigDict(env_file=".env")` only populates `settings.*`, it does NOT export into `os.environ`. So the Firebase startup hook hit the `if not sa_path` branch and raised `FIREBASE_SERVICE_ACCOUNT_PATH env var is not set`, which the `except Exception` in the startup hook swallowed (logged and continued). Every subsequent `verify_token()` call then hit the same error, returned 401, and the axios 401 interceptor signed the user out → bounce. Additionally, the worktree backend directory had no `.env` file at all (only the main-repo backend did).
+- **Fix:**
+  1. Added `from dotenv import load_dotenv; load_dotenv()` at the top of `backend/app/main.py` BEFORE any app imports. This populates `os.environ` from the backend-local `.env` so both `firebase_auth.py` and `attack_executor.py` see the keys they need.
+  2. Created `backend/.env` in the worktree with `FIREBASE_SERVICE_ACCOUNT_PATH` pointing at the service account JSON (still gitignored — service account JSON itself is NEVER committed).
+  3. Added `FIREBASE_SERVICE_ACCOUNT_PATH` to the main repo's `backend/.env` as well for parity.
+- **Files changed:** `backend/app/main.py`, `backend/.env` (worktree, new), `backend/.env` (main, updated)
+- **Regression test added:** Manual smoke test — `python -c "from dotenv import load_dotenv; load_dotenv(); from app.core.firebase_auth import _get_app; print(_get_app().name)"` now prints `[DEFAULT]` instead of raising.
+- **Future-proofing:** The Firebase startup hook's broad `except Exception` was intentionally left soft-failing so `/api/health` stays reachable for ops checks, but it now logs at ERROR level so CI and developers can spot misconfiguration in the server log immediately.

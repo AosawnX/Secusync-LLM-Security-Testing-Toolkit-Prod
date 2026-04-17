@@ -1,4 +1,12 @@
 import logging
+# Load .env into os.environ BEFORE any module that reads env vars at import
+# time (firebase_auth, attack_executor, etc). Without this the Firebase
+# startup hook can't find FIREBASE_SERVICE_ACCOUNT_PATH and every token
+# verification 401s, which the frontend interceptor turns into a sign-out
+# → the classic "dashboard flashes, bounces to login" symptom.
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
