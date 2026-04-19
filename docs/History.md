@@ -448,3 +448,18 @@ Total: **71 passed** (was 56 pre-sprint — one of the additions is covering the
 
 - Added: `backend/app/core/kb.py`, `backend/app/routers/kb.py`, `backend/app/routers/uploads.py`, `backend/app/core/engine/file_poisoning.py`, `backend/app/schemas/kb.py`, `backend/alembic/versions/2026_04_19_add_carrier_text.py`, `backend/tests/test_kb.py`, `backend/tests/test_file_poisoning.py`, `frontend/src/pages/KnowledgeBase.tsx`.
 - Modified: `backend/app/main.py` (router includes + seed hook), `backend/app/models/scan_run.py` (+carrier_text), `backend/app/schemas/scan.py` (+carrier_text), `backend/app/routers/scans.py` (pass carrier_text), `backend/app/core/attack_executor.py` (KB-backed baseline loader + carrier-splice), `backend/kb_data/attack_templates.json` (10 → 40), `frontend/src/App.tsx` (+/kb route), `frontend/src/layouts/MainLayout.tsx` (+nav link), `frontend/src/pages/RunDetail.tsx` (multi-class + upload widget).
+
+---
+
+### BUG — .env loaded relative to cwd; sign-in bounce returned when uvicorn launched via preview MCP
+- **Date:** 2026-04-19
+- **Sprint:** Sprint 4 follow-up
+- **Severity:** Blocker on the preview-MCP launch path; invisible on plain `cd backend && uvicorn …`
+- **Symptom:** Same user-visible bounce as the 2026-04-18 incident — dashboard flashed, redirected to `/login`. But this time `.env` _did_ exist and the previous fix (`load_dotenv()` at top of `main.py`) _was_ in place.
+- **Root cause:** `load_dotenv()` with no argument resolves `.env` relative to the **process cwd**, not to `main.py`. The preview MCP tool was started from the `exciting-wiles-a83b79` worktree root and launched uvicorn with `--app-dir backend`. `--app-dir` only adjusts `sys.path`; it does **not** `chdir`. So cwd stayed at the sibling worktree root, `load_dotenv()` silently found nothing, `FIREBASE_SERVICE_ACCOUNT_PATH` never entered `os.environ`, the startup hook's soft-fail swallowed the error, and every token verification 401'd — frontend interceptor signed the user out → bounce. Exact regression of the 2026-04-18 bug, now triggered by a different launcher instead of a missing `.env`.
+- **Fix (two layers):**
+  1. **Absolute-path `.env` resolution in `main.py`** — replaced `load_dotenv()` with `load_dotenv(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env")))`. Now cwd is irrelevant: the loader always reads the backend-local `.env` regardless of how uvicorn was invoked. This is the real fix.
+  2. **Launcher hygiene (defensive)** — updated `.claude/launch.json` in the active worktree so both the frontend and backend entries wrap the command in `powershell -NoProfile -Command "Set-Location '…/backend'; py -3.12 -m uvicorn …"`. This keeps cwd inside `backend/` even for tools that don't honour `--app-dir` semantics, and fixes the frontend-side issue where `npm --prefix "C:/.../frontend"` mangled the path containing a space.
+- **Files changed:** `backend/app/main.py` (absolute-path `load_dotenv`, with explanatory comment citing this incident), `.claude/launch.json` in both worktrees (powershell `Set-Location` wrapper).
+- **Verification:** After restarting the backend via `preview_start`, `GET /api/tllm/profiles` without a token returns `{"detail":"Not authenticated"}` and with a dummy `Authorization: Bearer …` returns `{"detail":"Invalid or expired authentication token"}` — the latter proves the Firebase Admin SDK actually initialised and is now running the verify path (previously it would raise the init error internally and we'd see the same 401 for a different reason).
+- **Lesson:** Any env-file loader that uses a relative path is a latent time bomb whenever the launch command changes. Default to absolute paths anchored at `__file__`.

@@ -1,11 +1,20 @@
 import logging
+import os
 # Load .env into os.environ BEFORE any module that reads env vars at import
 # time (firebase_auth, attack_executor, etc). Without this the Firebase
 # startup hook can't find FIREBASE_SERVICE_ACCOUNT_PATH and every token
 # verification 401s, which the frontend interceptor turns into a sign-out
 # → the classic "dashboard flashes, bounces to login" symptom.
+#
+# We resolve the .env path relative to THIS file rather than relying on the
+# process cwd. The previous cwd-relative load silently failed when uvicorn
+# was launched with --app-dir from outside the backend/ directory (e.g. via
+# the preview MCP tool from a sibling worktree), regressing the Firebase
+# init bug logged in History.md on 2026-04-18. Absolute-path resolution
+# makes the launcher's cwd irrelevant.
 from dotenv import load_dotenv
-load_dotenv()
+_BACKEND_ENV = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env"))
+load_dotenv(_BACKEND_ENV)
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
