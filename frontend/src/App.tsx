@@ -8,6 +8,7 @@ import { Targets } from './pages/Targets'
 import { RunDetail } from './pages/RunDetail'
 import { ExecutionDetail } from './pages/ExecutionDetail'
 import { Reports } from './pages/Reports'
+import { KnowledgeBase } from './pages/KnowledgeBase'
 import './index.css'
 
 function App() {
@@ -32,6 +33,7 @@ function App() {
             <Route path="runs/:id" element={<RunDetail />} />
             <Route path="executions/:id" element={<ExecutionDetail />} />
             <Route path="reports" element={<Reports />} />
+            <Route path="kb" element={<KnowledgeBase />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

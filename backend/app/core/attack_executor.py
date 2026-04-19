@@ -15,6 +15,7 @@ from app.models.scan_run import ScanRun
 from app.models.prompt_variant import PromptVariant
 from app.core.tllm_connector import TLLMConnector
 from app.core.engine.mutation import MutationEngine, STRATEGIES
+from app.core.engine.file_poisoning import build_poisoned_prompt
 from app.core.analysis.hybrid import HybridAnalysisEngine
 from app.config import settings
 
@@ -28,13 +29,43 @@ def _is_cancelled(db: Session, run: ScanRun) -> bool:
 
 
 def load_baseline_prompts(attack_classes: list[str]) -> list[dict]:
+    """Pull baseline templates for the selected attack classes from the KB.
+
+    We prefer the KB over the raw JSON file because user-added templates
+    live in SQLite, not on disk — reading through the KB lets scans pick
+    up custom entries without needing a restart. Falls back to the bundled
+    JSON only if the KB is empty (e.g. on first boot before seeding).
+    """
+    from app.core.kb import get_kb
+    from app.database import SessionLocal
+
+    templates: list[dict] = []
+    db = SessionLocal()
+    try:
+        for cls in attack_classes:
+            for row in get_kb().list_entries(db, attack_class=cls):
+                templates.append({
+                    "id": row.id,
+                    "attack_class": row.attack_class,
+                    "title": row.title,
+                    "template": row.template,
+                })
+    except Exception as e:
+        print(f"[executor] KB read failed, falling back to JSON: {e}")
+    finally:
+        db.close()
+
+    if templates:
+        return templates
+
+    # Last-resort fallback — the KB hasn't been seeded yet.
     try:
         with open("kb_data/attack_templates.json", "r", encoding="utf-8") as f:
-            templates = json.load(f)
+            raw = json.load(f)
     except Exception as e:
         print(f"Failed to load templates: {e}")
         return []
-    return [t for t in templates if t.get("attack_class") in attack_classes]
+    return [t for t in raw if t.get("attack_class") in attack_classes]
 
 
 def _get_judge_connector():
@@ -128,6 +159,15 @@ async def execute_scan_run(run_id: str, db: Session):
                 baseline_text = template["template"]
                 attack_class = template["attack_class"]
                 source_title = template.get("title", "unknown")
+
+                # For file_poisoning templates, splice the user's carrier
+                # document into the template's [Document body] placeholder
+                # so the payload is delivered as a document-summary request,
+                # not as a bare instruction. Skipped silently when the class
+                # isn't file_poisoning or no carrier was uploaded — baseline
+                # text then remains the raw template.
+                if attack_class == "file_poisoning" and run.carrier_text:
+                    baseline_text = build_poisoned_prompt(baseline_text, run.carrier_text)
 
                 # Persist the baseline variant first — all mutants descend from it.
                 baseline_variant = PromptVariant(

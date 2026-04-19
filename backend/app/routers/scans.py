@@ -49,6 +49,10 @@ def start_scan(
         attack_classes=json.dumps(scan_in.attack_classes),
         mutation_strategies=json.dumps(scan_in.mutation_strategies),
         mutation_depth=scan_in.mutation_depth,
+        # Carrier text is only meaningful when file_poisoning is in the mix;
+        # we store it unconditionally though so a later scan edit could add
+        # the class without re-uploading. Null-safe.
+        carrier_text=scan_in.carrier_text,
         status="PENDING"
     )
     db.add(run)

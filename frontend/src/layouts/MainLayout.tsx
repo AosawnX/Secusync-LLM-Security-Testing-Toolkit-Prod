@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, FileText, Shield, Target as TargetIcon, LogOut } from 'lucide-react'
+import { LayoutDashboard, FileText, Shield, Target as TargetIcon, LogOut, Book } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 
 export function MainLayout() {
@@ -10,6 +10,7 @@ export function MainLayout() {
     const navItems = [
         { path: '/', label: 'Dashboard', icon: LayoutDashboard },
         { path: '/targets', label: 'Targets', icon: TargetIcon },
+        { path: '/kb', label: 'Knowledge Base', icon: Book },
         { path: '/reports', label: 'Reports', icon: FileText },
     ]
 

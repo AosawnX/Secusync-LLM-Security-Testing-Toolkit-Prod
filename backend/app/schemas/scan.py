@@ -7,6 +7,10 @@ class ScanRunCreate(BaseModel):
     attack_classes: List[str] = Field(..., description="List of attack classes (e.g. ['prompt_injection'])")
     mutation_strategies: List[str] = Field(default=["none"], description="List of mutation strategies to apply")
     mutation_depth: int = Field(default=1, description="Depth of mutation applying")
+    # Plain-text carrier document used by the file_poisoning attack class.
+    # Obtained by the frontend via POST /api/uploads/document before starting
+    # the scan. Ignored if file_poisoning is not selected.
+    carrier_text: Optional[str] = Field(default=None, description="Carrier document text for file_poisoning attacks")
 
 class ScanRunResponse(BaseModel):
     id: str

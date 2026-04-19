@@ -403,3 +403,48 @@ This file is updated by the AI agent in two situations:
 - **Files changed:** `backend/app/main.py`, `backend/.env` (worktree, new), `backend/.env` (main, updated)
 - **Regression test added:** Manual smoke test — `python -c "from dotenv import load_dotenv; load_dotenv(); from app.core.firebase_auth import _get_app; print(_get_app().name)"` now prints `[DEFAULT]` instead of raising.
 - **Future-proofing:** The Firebase startup hook's broad `except Exception` was intentionally left soft-failing so `/api/health` stays reachable for ops checks, but it now logs at ERROR level so CI and developers can spot misconfiguration in the server log immediately.
+
+---
+
+## Sprint 4 — Knowledge Base + File Poisoning + Full Attack-Class Coverage
+
+**Date:** 2026-04-19
+**Status:** Complete — 71/71 tests pass
+
+### What shipped
+
+- **KB seed expansion** — `backend/kb_data/attack_templates.json` grown from 10 prompt-injection templates to 40 entries across all four PRD-defined classes (10 each for `prompt_injection`, `system_prompt_leakage`, `file_poisoning`, `sensitive_info_disclosure`). File-poisoning templates use a `[Document body]` placeholder so the executor can splice in the user's carrier text.
+- **Knowledge Base module** — `backend/app/core/kb.py` provides a process-wide `KnowledgeBase` singleton with SQLite persistence (via the existing `KBEntry` model) + an optional FAISS index over sentence-transformers embeddings for `search(query, attack_class, k)`. Falls back gracefully to "class filter + first-k" when ML deps are unavailable. A threading-RLock guards the index against concurrent router writes / executor reads.
+- **Startup seeding** — new `_seed_knowledge_base()` hook in `main.py` calls `seed_from_file(kb_data/attack_templates.json)` on every boot. Idempotent (skips ids that already exist) so the JSON can grow in version control without clobbering user-added entries.
+- **KB CRUD router** — `backend/app/routers/kb.py` adds `GET /api/kb/entries[?attack_class=…]`, `POST /api/kb/entries`, `DELETE /api/kb/entries/{id}`. Auth-gated but **not** user-scoped — per PRD §4.6 the KB is a global catalogue, so rows have no `user_id`. Attack-class values are validated against a whitelist to prevent the KB accumulating mis-tagged rows the executor can't match.
+- **Executor now reads from the KB** — `load_baseline_prompts()` in `attack_executor.py` queries `kb.list_entries()` per selected class and only falls back to the raw JSON if the KB is empty. User-added KB entries thus flow into scans immediately, without a server restart.
+- **File Poisoning pipeline end-to-end:**
+  - `backend/app/core/engine/file_poisoning.py` — `extract_text_from_upload(filename, data)` (PDF via pypdf, TXT/MD/LOG/CSV via UTF-8 with latin-1 fallback) + `build_poisoned_prompt(template, carrier)` which substitutes `[Document body]` or falls back to concatenation.
+  - `backend/app/routers/uploads.py` — `POST /api/uploads/document` returns `{filename, char_count, text}`; stateless (no blob storage) to sidestep per-user cleanup.
+  - `backend/app/models/scan_run.py` — new nullable `carrier_text` column (migration `b2c3d4e5f6a7`).
+  - `backend/app/schemas/scan.py`, `backend/app/routers/scans.py` — `ScanRunCreate.carrier_text` optional field propagated to the row.
+  - Executor loop — for `file_poisoning` templates whose run has `carrier_text`, `baseline_text = build_poisoned_prompt(template, carrier_text)` before mutation. All descendant variants in the tree inherit the poisoned baseline.
+- **Frontend:**
+  - `RunDetail.tsx` — replaced hardcoded `attack_classes: ['prompt_injection']` with a 4-checkbox multi-select; added a conditional document-upload widget that only appears when `file_poisoning` is selected; client-side gate blocks scan start when file_poisoning is selected without a carrier. The extracted text ships with the scan as `carrier_text`.
+  - `KnowledgeBase.tsx` — new page under `/kb` (nav-linked from `MainLayout.tsx`): class-filter chips with live counts, card-style list, delete button per row, collapsible "Add Template" form with attack-class selector + title/template/tags inputs. Pinned source to `'user'` because the form is the only path for user-contributed rows.
+- **Migration:** `backend/alembic/versions/2026_04_19_add_carrier_text.py` (revision `b2c3d4e5f6a7`, down-rev `a1b2c3d4e5f6`) — adds `scan_runs.carrier_text TEXT NULL`. Backfilled with `NULL` because pre-Sprint-4 scans never had a carrier doc.
+
+### Tests added
+
+- `backend/tests/test_kb.py` (7 tests) — seeding (idempotent), class filter, CRUD round-trip, fallback search returns ≤ k in-class rows, missing seed file returns 0. The embedder is forced into fallback mode via `_NullEmbedder` injection to keep tests fast and independent of ML model downloads.
+- `backend/tests/test_file_poisoning.py` (8 tests) — TXT/MD round-trips, oversized upload rejected, bad-UTF-8 latin-1 fallback, placeholder substitution, concat fallback, empty-carrier marker.
+
+Total: **71 passed** (was 56 pre-sprint — one of the additions is covering the new executor.carrier_text path implicitly via the new file-poisoning suite, the rest are net-new unit coverage).
+
+### Design decisions worth flagging
+
+- **KB is global, not per-tenant.** Per PRD §4.6 the adversarial template catalogue is meant to be shared, so `KBEntry` has no `user_id`. If multi-tenant curation becomes a need later, we'd add an owner column and a "public vs private" flag — but today, that would conflict with the "shared knowledge" framing.
+- **Upload endpoint is stateless.** We don't persist the uploaded file — it's extracted to text in-memory and returned to the frontend, which then ships the text back in the scan payload. This sidesteps a per-user blob storage story and makes the lifecycle trivial: the carrier document lives on the `scan_runs` row it was used for, nowhere else.
+- **FAISS rebuild on every write.** `add_entry` / `delete_entry` trigger a full `_rebuild_index()` because n is tiny (low hundreds of templates) and this avoids index-drift bugs. If the catalogue grows past ~5k rows we'd want incremental add/delete, but that's premature optimisation now.
+- **Placeholder contract.** Seeded file_poisoning templates use `[Document body]` as the substitution sentinel; custom templates without the sentinel fall back to `carrier + "\n\n" + template` so the feature still works — just less stealthy. This is documented in the `build_poisoned_prompt` docstring and visible in the new-template form placeholder.
+- **Carrier text validation is client-side only.** We don't reject an empty `carrier_text` server-side when `file_poisoning` is selected because (a) the user might legitimately want to test with an empty document, and (b) enforcing it would block scans that include file_poisoning alongside other classes just because the upload failed. The UI gate is sufficient for the happy path.
+
+### Files changed
+
+- Added: `backend/app/core/kb.py`, `backend/app/routers/kb.py`, `backend/app/routers/uploads.py`, `backend/app/core/engine/file_poisoning.py`, `backend/app/schemas/kb.py`, `backend/alembic/versions/2026_04_19_add_carrier_text.py`, `backend/tests/test_kb.py`, `backend/tests/test_file_poisoning.py`, `frontend/src/pages/KnowledgeBase.tsx`.
+- Modified: `backend/app/main.py` (router includes + seed hook), `backend/app/models/scan_run.py` (+carrier_text), `backend/app/schemas/scan.py` (+carrier_text), `backend/app/routers/scans.py` (pass carrier_text), `backend/app/core/attack_executor.py` (KB-backed baseline loader + carrier-splice), `backend/kb_data/attack_templates.json` (10 → 40), `frontend/src/App.tsx` (+/kb route), `frontend/src/layouts/MainLayout.tsx` (+nav link), `frontend/src/pages/RunDetail.tsx` (multi-class + upload widget).

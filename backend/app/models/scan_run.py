@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, DateTime
+from sqlalchemy import Column, String, Integer, DateTime, Text
 from app.database import Base
 import uuid
 import datetime
@@ -17,5 +17,9 @@ class ScanRun(Base):
     mutation_depth = Column(Integer, default=1)
     total_prompts_sent = Column(Integer, default=0)
     vulnerabilities_found = Column(Integer, default=0)
+    # Plain-text carrier document for file_poisoning attacks. Populated by
+    # the frontend after POST /api/uploads/document extracts the PDF/TXT.
+    # Null for scans that don't include the file_poisoning attack class.
+    carrier_text = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)
