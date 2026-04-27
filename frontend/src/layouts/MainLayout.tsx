@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { LayoutDashboard, FileText, Shield, Target as TargetIcon, LogOut, Book } from 'lucide-react'
+import { LayoutDashboard, FileText, Shield, Target as TargetIcon, LogOut, Book, History, Settings } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 
 export function MainLayout() {
@@ -10,8 +10,10 @@ export function MainLayout() {
     const navItems = [
         { path: '/', label: 'Dashboard', icon: LayoutDashboard },
         { path: '/targets', label: 'Targets', icon: TargetIcon },
+        { path: '/history', label: 'Scan History', icon: History },
         { path: '/kb', label: 'Knowledge Base', icon: Book },
         { path: '/reports', label: 'Reports', icon: FileText },
+        { path: '/settings', label: 'Settings', icon: Settings },
     ]
 
     const handleSignOut = async () => {
@@ -31,7 +33,9 @@ export function MainLayout() {
                 <nav className="flex-1 p-4 space-y-1">
                     {navItems.map((item) => {
                         const Icon = item.icon
-                        const isActive = location.pathname === item.path
+                        const isActive = item.path === '/'
+                            ? location.pathname === '/'
+                            : location.pathname.startsWith(item.path)
                         return (
                             <Link
                                 key={item.path}

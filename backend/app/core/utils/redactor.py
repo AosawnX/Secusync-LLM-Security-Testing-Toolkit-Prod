@@ -7,7 +7,9 @@ class Redactor:
     """
     
     PATTERNS = {
-        "openai_key": r"sk-[A-Za-z0-9]{20,}",
+        # Matches real OpenAI keys (sk-<20+ alphanum>) AND hyphenated variants
+        # used in mock/demo credentials (e.g. sk-acme-prod-8x7z2k1m).
+        "openai_key": r"sk-[A-Za-z0-9][A-Za-z0-9\-]{9,}",
         "google_key": r"AIza[A-Za-z0-9_-]{35}",
         "bearer_token": r"Bearer\s+[A-Za-z0-9\-._~+/]+=*",
         "generic_password": r"(?i)(password[:=]\s*)[^\s]+",

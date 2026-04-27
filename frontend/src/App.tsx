@@ -9,6 +9,8 @@ import { RunDetail } from './pages/RunDetail'
 import { ExecutionDetail } from './pages/ExecutionDetail'
 import { Reports } from './pages/Reports'
 import { KnowledgeBase } from './pages/KnowledgeBase'
+import { History } from './pages/History'
+import { Settings } from './pages/Settings'
 import './index.css'
 
 function App() {
@@ -34,6 +36,8 @@ function App() {
             <Route path="executions/:id" element={<ExecutionDetail />} />
             <Route path="reports" element={<Reports />} />
             <Route path="kb" element={<KnowledgeBase />} />
+            <Route path="history" element={<History />} />
+            <Route path="settings" element={<Settings />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

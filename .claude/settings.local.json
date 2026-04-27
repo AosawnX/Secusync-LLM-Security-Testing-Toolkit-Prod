@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m pytest tests/ -v --tb=short)",
+      "Bash(python -m pytest tests/test_report_generator.py tests/test_redactor.py -v --tb=short)"
+    ]
+  }
+}
