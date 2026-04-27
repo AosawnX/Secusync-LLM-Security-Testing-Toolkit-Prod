@@ -19,7 +19,7 @@ load_dotenv(_BACKEND_ENV)
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
-from app.routers import tllm, scans, kb, uploads
+from app.routers import tllm, scans, kb, uploads, demo
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +37,9 @@ app.include_router(tllm.router)
 app.include_router(scans.router)
 app.include_router(kb.router)
 app.include_router(uploads.router)
+# Demo / synthetic vulnerable TLLM — no auth required (it IS the target, not
+# a SECUSYNC API). Registered last so it doesn't shadow authenticated routes.
+app.include_router(demo.router)
 
 
 @app.on_event("startup")

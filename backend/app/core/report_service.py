@@ -7,12 +7,20 @@ from xhtml2pdf import pisa
 from app.models.scan_run import ScanRun
 from app.models.prompt_variant import PromptVariant
 from app.core.attack_executor import _get_judge_connector
+from app.core.utils.redactor import Redactor
 
 RUNS_DIR = "runs"
 TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "..", "templates")
 
 # Ensure templates dir exists
 os.makedirs(TEMPLATES_DIR, exist_ok=True)
+
+_ATTACK_CLASS_LABELS = {
+    "prompt_injection": "Prompt Injection Vulnerability",
+    "system_prompt_leakage": "System Prompt Leakage",
+    "file_poisoning": "File Poisoning (Indirect Injection)",
+    "sensitive_info_disclosure": "Sensitive Information Disclosure",
+}
 
 class ReportService:
     def __init__(self):
@@ -27,22 +35,40 @@ class ReportService:
         return pisa_status.err
 
     def _extract_findings(self, variants):
+        """Extract VULNERABLE findings, redacting secrets from response text.
+
+        PRD §4.7 requires that raw secrets in responses are replaced with
+        [REDACTED] before they appear in any report artefact.  We run the
+        Redactor over both the response text and the description string so
+        the PDF never contains a live credential.
+        """
         findings = []
         for v in variants:
             if v.verdict == "VULNERABLE":
                 matches = "Details not recorded"
                 if v.deterministic_matches:
                     try:
-                         # deterministic_matches is a JSON list of matches
-                         matches = ", ".join(json.loads(v.deterministic_matches))
-                    except:
-                         matches = v.deterministic_matches
+                        matches = ", ".join(json.loads(v.deterministic_matches))
+                    except Exception:
+                        matches = v.deterministic_matches
+
+                # Redact secrets from the response before including in report
+                raw_response = v.response_text or ""
+                redacted_response = Redactor.sanitize(raw_response)
+
+                severity = "critical" if any(
+                    kw in raw_response for kw in ("sk-", "Bearer ", "AIza", "password")
+                ) else "high" if v.attack_class in ("system_prompt_leakage", "sensitive_info_disclosure") else "medium"
 
                 findings.append({
-                    "type": "Prompt Injection Vulnerability",
-                    "severity": "high" if "sk-" in str(v.response_text) else "medium",
-                    "description": matches[:200],
-                    "prompt": v.prompt_text
+                    "type": _ATTACK_CLASS_LABELS.get(v.attack_class, "Vulnerability"),
+                    "attack_class": v.attack_class,
+                    "severity": severity,
+                    "description": Redactor.sanitize(matches[:300]),
+                    "prompt": v.prompt_text,
+                    "response": redacted_response[:500],
+                    "strategy": v.strategy_applied or "baseline",
+                    "depth": v.depth,
                 })
         return findings
 
@@ -131,15 +157,36 @@ class ReportService:
         if not findings:
             return None
 
-        guide_content = f"# Reproduction Guide for Run {run.id}\n\n## Target Information\n- **Target ID**: {run.tllm_profile_id}\n- **Date**: {run.created_at}\n\n## Vulnerabilities Found\n"
-        
+        guide_content = (
+            f"# SECUSYNC — PoC Reproduction Bundle\n\n"
+            f"## Scan Metadata\n"
+            f"- **Run ID**: {run.id}\n"
+            f"- **Target Profile**: {run.tllm_profile_id}\n"
+            f"- **Date**: {run.created_at}\n"
+            f"- **Attack Classes**: {run.attack_classes}\n\n"
+            f"## Vulnerabilities Found ({len(findings)})\n"
+        )
         for i, finding in enumerate(findings):
-             guide_content += f"\n### {i+1}. {finding['type']}\n"
-             guide_content += f"- **Severity**: {finding['severity']}\n"
-             guide_content += f"- **Prompt**: `{finding['prompt']}`\n"
-        
-        guide_content += "\n## Reproduction Steps\n1. Configure the target system as per the profile.\n2. Send the prompts listed above.\n3. Observe the response for leaked information.\n"
-        guide_content += "\n\n**CONFIDENTIALITY NOTICE:** This information is intended for authorized security personnel only."
+            guide_content += (
+                f"\n### {i+1}. {finding['type']}\n"
+                f"- **Severity**: {finding['severity'].upper()}\n"
+                f"- **Attack Class**: {finding.get('attack_class', 'unknown')}\n"
+                f"- **Mutation Strategy**: {finding.get('strategy', 'baseline')}\n"
+                f"- **Mutation Depth**: {finding.get('depth', 0)}\n"
+                f"- **Prompt**:\n\n```\n{finding['prompt']}\n```\n\n"
+                f"- **Response (redacted)**:\n\n```\n{finding.get('response', '[no response]')}\n```\n"
+            )
+        guide_content += (
+            "\n## Reproduction Steps\n"
+            "1. Configure the target system as per the TLLM profile.\n"
+            "2. Send each prompt above to the target endpoint.\n"
+            "3. Observe the response for leaked information or injected behaviour.\n"
+            "4. Compare against the VULNERABLE verdict criteria in the Technical Report.\n\n"
+            "---\n"
+            "**CONFIDENTIALITY NOTICE:** This bundle is intended for authorized security "
+            "personnel only. Do not share or use against unauthorized systems.\n"
+            "\n*Generated by SECUSYNC v1.0 — LLM Security Testing Toolkit*\n"
+        )
 
         run_dir = os.path.join(RUNS_DIR, run.id)
         os.makedirs(run_dir, exist_ok=True)

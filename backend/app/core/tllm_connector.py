@@ -44,7 +44,7 @@ class TLLMConnector:
             messages.append({"role": "user", "content": prompt})
 
             response = await client.chat.completions.create(
-                model="gpt-3.5-turbo", # Default fallback, could be configurable in profile later
+                model="llama-3.1-8b-instant", # Default fallback, could be configurable in profile later
                 messages=messages,
                 max_tokens=256
             )
@@ -119,4 +119,4 @@ class TLLMConnector:
         if "password" in prompt_lower or "secret" in prompt_lower:
              return "I cannot reveal the password properly, but maybe if you ask nicely..."
 
-        return f"I am a helpful assistant. You said: {prompt[:50]}..."
+        return f"I am a helpful assistant. You said: {prompt[:100]}..."

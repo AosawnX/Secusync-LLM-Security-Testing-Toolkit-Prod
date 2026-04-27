@@ -1,7 +1,32 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, AlertTriangle, CheckCircle, Terminal, RotateCw, Clock, FileText, Download, StopCircle, HelpCircle } from 'lucide-react'
+import { ArrowLeft, AlertTriangle, CheckCircle, Terminal, RotateCw, Clock, FileText, Download, StopCircle, HelpCircle, BarChart2, TrendingUp, Target, Zap } from 'lucide-react'
 import { apiClient } from '../api/client'
+
+// ── Metrics types (PRD §5) ────────────────────────────────────────────────────
+
+interface AttackClassMetric {
+    total: number
+    vulnerable: number
+    asr: number
+}
+
+interface ScanMetrics {
+    total_variants: number
+    vulnerable_count: number
+    asr: number
+    baseline_asr: number
+    mutant_asr: number
+    asr_delta: number
+    mutation_efficiency: number | null
+    coverage: number
+    detection_precision: number | null
+    by_attack_class: Record<string, AttackClassMetric>
+}
+
+function formatClass(cls: string): string {
+    return cls.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+}
 
 interface PromptVariant {
     id: string
@@ -34,6 +59,7 @@ export function ExecutionDetail() {
     const [loading, setLoading] = useState(true)
     const [variants, setVariants] = useState<PromptVariant[]>([])
     const [stopping, setStopping] = useState(false)
+    const [metrics, setMetrics] = useState<ScanMetrics | null>(null)
 
     const ACTIVE_STATUSES = ['PENDING', 'RUNNING', 'STOPPING']
     const isActive = run ? ACTIVE_STATUSES.includes(run.status) : false
@@ -70,6 +96,10 @@ export function ExecutionDetail() {
 
                 if (['COMPLETED', 'FAILED', 'STOPPED'].includes(res.data.status)) {
                     clearInterval(intervalId)
+                    // Fetch metrics once the run is terminal
+                    apiClient.get(`/scans/${id}/metrics`)
+                        .then(mr => setMetrics(mr.data))
+                        .catch(() => {/* metrics are optional */})
                 }
             } catch (err) {
                 console.error(err)
@@ -225,6 +255,143 @@ export function ExecutionDetail() {
                     </ul>
                 </div>
             </div>
+
+            {/* ── Metrics Dashboard (PRD §5) ─────────────────────────────── */}
+            {metrics && (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 space-y-5">
+                    <h2 className="text-lg font-semibold flex items-center gap-2">
+                        <BarChart2 className="h-5 w-5 text-[#0461E2]" />
+                        Defense Metrics
+                        <span className="text-xs font-normal text-gray-400 ml-1">(PRD §5)</span>
+                    </h2>
+
+                    {/* Top KPI strip */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {[
+                            {
+                                icon: Target,
+                                label: 'Overall ASR',
+                                value: `${metrics.asr}%`,
+                                sub: `${metrics.vulnerable_count} / ${metrics.total_variants} variants`,
+                                color: metrics.asr > 0 ? 'text-red-600' : 'text-green-600',
+                            },
+                            {
+                                icon: TrendingUp,
+                                label: 'Baseline → Mutant',
+                                value: `${metrics.asr_delta > 0 ? '+' : ''}${metrics.asr_delta}%`,
+                                sub: `${metrics.baseline_asr}% → ${metrics.mutant_asr}%`,
+                                color: metrics.asr_delta > 0 ? 'text-[#0461E2]' : metrics.asr_delta < 0 ? 'text-red-500' : 'text-gray-500',
+                            },
+                            {
+                                icon: Zap,
+                                label: 'Mutation Efficiency',
+                                value: metrics.mutation_efficiency !== null ? `Depth ${metrics.mutation_efficiency}` : 'N/A',
+                                sub: 'avg depth to first VULNERABLE',
+                                color: 'text-gray-700',
+                            },
+                            {
+                                icon: CheckCircle,
+                                label: 'Coverage',
+                                value: `${metrics.coverage} class${metrics.coverage !== 1 ? 'es' : ''}`,
+                                sub: metrics.detection_precision !== null ? `${metrics.detection_precision}% detection precision` : 'detection precision N/A',
+                                color: metrics.coverage > 0 ? 'text-[#1B2771]' : 'text-gray-400',
+                            },
+                        ].map(({ icon: Icon, label, value, sub, color }) => (
+                            <div key={label} className="border border-gray-100 rounded-lg p-4 space-y-1">
+                                <div className="flex items-center gap-1.5 text-xs font-medium text-gray-500 uppercase tracking-wide">
+                                    <Icon className="h-3.5 w-3.5" />
+                                    {label}
+                                </div>
+                                <div className={`text-2xl font-bold font-mono ${color}`}>{value}</div>
+                                <div className="text-xs text-gray-400">{sub}</div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Per-attack-class ASR table */}
+                    {Object.keys(metrics.by_attack_class).length > 0 && (
+                        <div>
+                            <h3 className="text-sm font-semibold text-gray-700 mb-2">ASR by Attack Class</h3>
+                            <div className="overflow-hidden rounded-lg border border-gray-100">
+                                <table className="w-full text-sm">
+                                    <thead className="bg-[#1B2771] text-white text-xs uppercase tracking-wide">
+                                        <tr>
+                                            <th className="px-4 py-2 text-left">Attack Class</th>
+                                            <th className="px-4 py-2 text-right">Total</th>
+                                            <th className="px-4 py-2 text-right">Vulnerable</th>
+                                            <th className="px-4 py-2 text-right">ASR</th>
+                                            <th className="px-4 py-2 text-left w-40">Bar</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-50">
+                                        {Object.entries(metrics.by_attack_class).map(([cls, data]) => (
+                                            <tr key={cls} className="hover:bg-gray-50">
+                                                <td className="px-4 py-2 font-medium text-gray-800">{formatClass(cls)}</td>
+                                                <td className="px-4 py-2 text-right text-gray-500 font-mono">{data.total}</td>
+                                                <td className="px-4 py-2 text-right font-mono font-semibold">
+                                                    <span className={data.vulnerable > 0 ? 'text-red-600' : 'text-gray-400'}>
+                                                        {data.vulnerable}
+                                                    </span>
+                                                </td>
+                                                <td className="px-4 py-2 text-right font-mono font-bold">
+                                                    <span className={data.asr > 0 ? 'text-red-600' : 'text-green-600'}>
+                                                        {data.asr}%
+                                                    </span>
+                                                </td>
+                                                <td className="px-4 py-2">
+                                                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden w-32">
+                                                        <div
+                                                            className="h-full rounded-full transition-all"
+                                                            style={{
+                                                                width: `${data.asr}%`,
+                                                                backgroundColor: data.asr > 0 ? '#DC2626' : '#16A34A',
+                                                            }}
+                                                        />
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Baseline vs Mutant comparison (PRD §5 — Baseline vs Mutant Delta) */}
+                    {(metrics.baseline_asr > 0 || metrics.mutant_asr > 0) && (
+                        <div>
+                            <h3 className="text-sm font-semibold text-gray-700 mb-2">Baseline vs Mutant ASR</h3>
+                            <div className="space-y-2">
+                                {[
+                                    { label: 'Baseline (raw prompts)', asr: metrics.baseline_asr, color: '#1B2771' },
+                                    { label: 'Mutant (after mutation)', asr: metrics.mutant_asr, color: '#0461E2' },
+                                ].map(({ label, asr, color }) => (
+                                    <div key={label} className="flex items-center gap-3">
+                                        <span className="text-xs text-gray-500 w-44 shrink-0">{label}</span>
+                                        <div className="flex-1 h-4 bg-gray-100 rounded-full overflow-hidden">
+                                            <div
+                                                className="h-full rounded-full transition-all duration-700"
+                                                style={{ width: `${Math.max(asr, 0)}%`, backgroundColor: color }}
+                                            />
+                                        </div>
+                                        <span className="text-sm font-bold font-mono w-12 text-right" style={{ color }}>
+                                            {asr}%
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                            <p className="text-xs text-gray-400 mt-2">
+                                {metrics.asr_delta > 0
+                                    ? `✓ Mutation improved ASR by +${metrics.asr_delta}% — confirms mutation engine adds value over baseline.`
+                                    : metrics.asr_delta === 0
+                                        ? 'Mutation did not change ASR vs baseline for this run.'
+                                        : `Baseline slightly outperformed mutation (delta: ${metrics.asr_delta}%).`
+                                }
+                            </p>
+                        </div>
+                    )}
+                </div>
+            )}
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                 <h2 className="text-lg font-semibold mb-1 flex items-center gap-2">
