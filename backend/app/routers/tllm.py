@@ -32,6 +32,39 @@ def get_profiles(
 ):
     return db.query(TLLMProfile).filter(TLLMProfile.user_id == uid).all()
 
+@router.post("/migrate-legacy-data")
+def migrate_legacy_data(
+    uid: str = Depends(current_uid),
+    db: Session = Depends(get_db),
+):
+    """Temporary migration endpoint: assigns all 'legacy-pre-auth' data to the current user.
+
+    This allows users who have pre-auth demo data to access it under their authenticated account.
+    Call this once after logging in to migrate your legacy data.
+    """
+    from app.models.scan_run import ScanRun
+
+    # Migrate all legacy profiles
+    legacy_profiles = db.query(TLLMProfile).filter(TLLMProfile.user_id == "legacy-pre-auth").all()
+    profiles_migrated = len(legacy_profiles)
+    for profile in legacy_profiles:
+        profile.user_id = uid
+
+    # Migrate all legacy scan runs
+    legacy_runs = db.query(ScanRun).filter(ScanRun.user_id == "legacy-pre-auth").all()
+    runs_migrated = len(legacy_runs)
+    for run in legacy_runs:
+        run.user_id = uid
+
+    db.commit()
+
+    return {
+        "status": "migrated",
+        "profiles_migrated": profiles_migrated,
+        "runs_migrated": runs_migrated,
+        "firebase_uid": uid
+    }
+
 @router.put("/{profile_id}", response_model=TLLMProfileResponse)
 def update_profile(
     profile_id: str,

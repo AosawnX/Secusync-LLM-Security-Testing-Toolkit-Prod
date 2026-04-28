@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Settings as SettingsIcon, Save, RefreshCw, Info, CheckCircle, ExternalLink } from 'lucide-react'
+import { Settings as SettingsIcon, Save, RefreshCw, Info, CheckCircle, ExternalLink, Loader } from 'lucide-react'
+import { apiClient } from '../api/client'
 
 const LS_KEY = 'secusync_settings'
 
@@ -53,6 +54,8 @@ export function Settings() {
     const [settings, setSettings] = useState<AppSettings>(loadSettings)
     const [saved, setSaved] = useState(false)
     const [backendInfo, setBackendInfo] = useState<Record<string, unknown> | null>(null)
+    const [migrating, setMigrating] = useState(false)
+    const [migrationResult, setMigrationResult] = useState<Record<string, unknown> | null>(null)
 
     useEffect(() => {
         fetch('http://127.0.0.1:8000/api/demo/target/info')
@@ -73,6 +76,18 @@ export function Settings() {
     const handleReset = () => {
         setSettings({ ...DEFAULTS })
         localStorage.removeItem(LS_KEY)
+    }
+
+    const handleMigrateLegacyData = async () => {
+        setMigrating(true)
+        try {
+            const response = await apiClient.post('/migrate')
+            setMigrationResult(response.data)
+        } catch (err) {
+            setMigrationResult({ error: 'Failed to migrate legacy data', details: String(err) })
+        } finally {
+            setMigrating(false)
+        }
     }
 
     const inputCls = "w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0461E2] font-mono"
@@ -195,6 +210,56 @@ export function Settings() {
                     />
                 </Field>
             </section>
+
+            {/* Data Migration */}
+            {migrationResult === null && (
+                <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-3">
+                    <h2 className="text-lg font-semibold text-[#1B2771] flex items-center gap-2">
+                        <Info className="h-5 w-5 text-[#0461E2]" />
+                        Migrate Legacy Data
+                    </h2>
+                    <p className="text-xs text-gray-500">
+                        If you have pre-authentication demo targets and scans, click below to migrate them to your authenticated account.
+                        This is a one-time operation.
+                    </p>
+                    <button
+                        onClick={handleMigrateLegacyData}
+                        disabled={migrating}
+                        className="flex items-center gap-2 px-4 py-2 bg-[#0461E2] text-white font-medium rounded-lg hover:bg-[#1B2771] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {migrating ? <Loader className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                        {migrating ? 'Migrating…' : 'Migrate Legacy Data'}
+                    </button>
+                </section>
+            )}
+
+            {/* Migration Result */}
+            {migrationResult && (
+                <section className={`rounded-xl border shadow-sm p-6 space-y-3 ${migrationResult.error ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'}`}>
+                    <h2 className="text-lg font-semibold flex items-center gap-2">
+                        {migrationResult.error ? (
+                            <span className="text-red-700">❌ Migration Failed</span>
+                        ) : (
+                            <span className="text-green-700">✅ Migration Complete</span>
+                        )}
+                    </h2>
+                    {migrationResult.error ? (
+                        <p className="text-sm text-red-600">{migrationResult.details || migrationResult.error}</p>
+                    ) : (
+                        <div className="text-sm text-green-700 space-y-1">
+                            <p>Profiles migrated: <strong>{migrationResult.profiles_migrated}</strong></p>
+                            <p>Scan runs migrated: <strong>{migrationResult.runs_migrated}</strong></p>
+                        </div>
+                    )}
+                    <button
+                        onClick={() => { setMigrationResult(null); window.location.reload(); }}
+                        className="flex items-center gap-2 px-4 py-2 bg-[#0461E2] text-white font-medium rounded-lg hover:bg-[#1B2771] transition-colors"
+                    >
+                        <CheckCircle className="h-4 w-4" />
+                        Reload to View Data
+                    </button>
+                </section>
+            )}
 
             {/* Demo TLLM info */}
             <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-3">

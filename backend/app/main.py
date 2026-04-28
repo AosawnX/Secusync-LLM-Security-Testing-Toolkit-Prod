@@ -80,3 +80,51 @@ def _seed_knowledge_base() -> None:
 @app.get("/api/health")
 def health_check():
     return {"status": "ok"}
+
+
+# Temporary debug endpoints — remove after data migration
+from fastapi import Depends
+from app.dependencies import current_uid
+from sqlalchemy.orm import Session
+from app.database import get_db
+from app.models.tllm_profile import TLLMProfile
+from app.models.scan_run import ScanRun
+
+@app.get("/api/debug/whoami")
+def debug_whoami(user_uid: str = Depends(current_uid)):
+    """Temporary debug endpoint to show current user's Firebase UID.
+
+    Requires authentication. Call with your Firebase token in Authorization header.
+    """
+    return {"firebase_uid": user_uid}
+
+
+@app.post("/api/migrate")
+def migrate_legacy_data_direct(
+    user_uid: str = Depends(current_uid),
+    db: Session = Depends(get_db),
+):
+    """Direct migration endpoint for legacy-pre-auth data.
+
+    This migrates all legacy-pre-auth data to the current user's Firebase UID.
+    """
+    # Migrate all legacy profiles
+    legacy_profiles = db.query(TLLMProfile).filter(TLLMProfile.user_id == "legacy-pre-auth").all()
+    profiles_migrated = len(legacy_profiles)
+    for profile in legacy_profiles:
+        profile.user_id = user_uid
+
+    # Migrate all legacy scan runs
+    legacy_runs = db.query(ScanRun).filter(ScanRun.user_id == "legacy-pre-auth").all()
+    runs_migrated = len(legacy_runs)
+    for run in legacy_runs:
+        run.user_id = user_uid
+
+    db.commit()
+
+    return {
+        "status": "migrated",
+        "profiles_migrated": profiles_migrated,
+        "runs_migrated": runs_migrated,
+        "firebase_uid": user_uid
+    }

@@ -1,107 +1,472 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SECUSYNC Report - {{ run.id }}</title>
-    <style>
-        body {
-            font-family: sans-serif;
-            line-height: 1.6;
-            color: #333;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-        }
+<meta charset="UTF-8">
+<title>SECUSYNC {{ report_type }} {{ run.id }}</title>
+<style>
+    @page {
+        size: A4;
+        margin: 11mm 12mm 9mm 12mm;
+    }
 
-        h1,
-        h2 {
-            border-bottom: 2px solid #eee;
-            padding-bottom: 10px;
-        }
+    /* xhtml2pdf has limited CSS support: no flex, no grid, no var().
+       Layout uses tables and inline-block. Colors are hard-coded
+       per the SECUSYNC branding system. Spacing is calibrated so the
+       full report fits on one A4 page. */
 
-        .summary {
-            background: #f9f9f9;
-            padding: 15px;
-            border-radius: 5px;
-            margin-bottom: 20px;
-        }
+    body {
+        font-family: Helvetica, Arial, sans-serif;
+        color: #1A1A2E;
+        font-size: 8.5pt;
+        line-height: 1.3;
+        margin: 0;
+        padding: 0;
+    }
 
-        .score {
-            font-size: 2em;
-            font-weight: bold;
-        }
-        
-        .score.high { color: red; }
-        .score.medium { color: orange; }
-        .score.low { color: green; }
+    /* ---------- HEADER ---------- */
+    .header {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 4pt;
+    }
+    .header td { vertical-align: middle; padding: 0; }
 
-        .finding {
-            padding: 10px;
-            border: 1px solid #ddd;
-            margin-bottom: 10px;
-            border-radius: 5px;
-        }
+    .brand {
+        font-size: 14pt;
+        font-weight: bold;
+        color: #1B2771;
+        letter-spacing: 1pt;
+        line-height: 1;
+    }
+    .brand-tag {
+        font-size: 6.8pt;
+        color: #6B7280;
+        letter-spacing: 0.4pt;
+        text-transform: uppercase;
+        line-height: 1;
+        margin-top: 2pt;
+    }
+    .pill-cell { text-align: right; }
+    .report-type-pill {
+        background-color: {% if is_executive %}#1B2771{% else %}#0461E2{% endif %};
+        color: #FFFFFF;
+        font-size: 7.5pt;
+        font-weight: bold;
+        padding: 3pt 8pt;
+        letter-spacing: 0.7pt;
+        text-transform: uppercase;
+    }
+    .accent-rule {
+        border: none;
+        border-top: 1.5pt solid #0461E2;
+        margin: 3pt 0 5pt 0;
+    }
 
-        .finding.high {
-            border-left: 5px solid red;
-            background: #fff5f5;
-        }
+    /* ---------- TITLE ---------- */
+    .doc-title {
+        color: #1B2771;
+        font-size: 13pt;
+        font-weight: bold;
+        margin: 0;
+        line-height: 1.05;
+    }
+    .doc-subtitle {
+        color: #6B7280;
+        font-size: 7.8pt;
+        margin: 1pt 0 5pt 0;
+    }
 
-        .finding.medium {
-            border-left: 5px solid orange;
-            background: #fffcf5;
-        }
+    /* ---------- METADATA STRIP ---------- */
+    .meta-strip {
+        width: 100%;
+        border-collapse: collapse;
+        background-color: #F3F4F6;
+        margin-bottom: 5pt;
+    }
+    .meta-strip td {
+        padding: 3.5pt 6pt;
+        font-size: 7.5pt;
+        border-right: 1pt solid #E5E7EB;
+    }
+    .meta-strip td:last-child { border-right: none; }
+    .meta-label {
+        color: #6B7280;
+        text-transform: uppercase;
+        font-size: 6pt;
+        letter-spacing: 0.4pt;
+        display: block;
+        margin-bottom: 1pt;
+    }
+    .meta-value {
+        color: #1A1A2E;
+        font-weight: bold;
+        font-size: 8pt;
+    }
 
-        .meta {
-            color: #666;
-            font-size: 0.9em;
-        }
-    </style>
+    /* ---------- SECTION HEADERS ---------- */
+    .section-title {
+        color: #1B2771;
+        font-size: 8.5pt;
+        font-weight: bold;
+        text-transform: uppercase;
+        letter-spacing: 0.5pt;
+        border-bottom: 0.75pt solid #E5E7EB;
+        padding-bottom: 1.5pt;
+        margin: 5pt 0 3pt 0;
+    }
+
+    /* ---------- KPI ROW (executive) ---------- */
+    .kpi-row {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 4pt;
+    }
+    .kpi-cell {
+        width: 25%;
+        padding: 4pt 3pt;
+        text-align: center;
+        border: 0.75pt solid #E5E7EB;
+    }
+    .kpi-number {
+        font-size: 14pt;
+        font-weight: bold;
+        line-height: 1;
+        margin-bottom: 1pt;
+    }
+    .kpi-number.crit { color: #991B1B; }
+    .kpi-number.high { color: #DC2626; }
+    .kpi-number.med  { color: #D97706; }
+    .kpi-number.low  { color: #16A34A; }
+    .kpi-number.info { color: #1B2771; }
+    .kpi-label {
+        font-size: 6.5pt;
+        color: #6B7280;
+        text-transform: uppercase;
+        letter-spacing: 0.4pt;
+    }
+
+    /* ---------- TABLES (shared) ---------- */
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 3pt;
+    }
+    .data-table th {
+        background-color: #1B2771;
+        color: #FFFFFF;
+        font-size: 7pt;
+        font-weight: bold;
+        padding: 3pt 5pt;
+        text-align: left;
+        text-transform: uppercase;
+        letter-spacing: 0.4pt;
+    }
+    .data-table td {
+        padding: 2.5pt 5pt;
+        font-size: 7.8pt;
+        border-bottom: 0.5pt solid #E5E7EB;
+        vertical-align: top;
+    }
+    .data-table .num { text-align: right; font-weight: bold; }
+
+    /* ---------- SEVERITY BADGE ---------- */
+    .sev-badge {
+        display: inline-block;
+        font-size: 6.5pt;
+        font-weight: bold;
+        padding: 1pt 4pt;
+        color: #FFFFFF;
+        text-transform: uppercase;
+        letter-spacing: 0.3pt;
+    }
+    .sev-critical { background-color: #991B1B; }
+    .sev-high     { background-color: #DC2626; }
+    .sev-medium   { background-color: #D97706; }
+    .sev-low      { background-color: #16A34A; }
+    .sev-info     { background-color: #6B7280; }
+
+    /* ---------- NARRATIVE BLOCK ---------- */
+    .narrative {
+        background-color: #F9FAFB;
+        border-left: 2.5pt solid #0461E2;
+        padding: 4pt 7pt;
+        font-size: 8pt;
+        line-height: 1.35;
+        margin-bottom: 4pt;
+        color: #1A1A2E;
+    }
+    .narrative-exec { border-left-color: #1B2771; }
+
+    /* ---------- TWO COLUMN ---------- */
+    .two-col { width: 100%; border-collapse: collapse; }
+    .two-col td { vertical-align: top; width: 50%; }
+    .col-left  { padding-right: 4pt; }
+    .col-right { padding-left: 4pt; }
+
+    /* ---------- METRICS GRID (technical) ---------- */
+    .metrics-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    .metrics-table td {
+        padding: 2.5pt 5pt;
+        font-size: 7.6pt;
+        border: 0.5pt solid #E5E7EB;
+    }
+    .metrics-table .m-label {
+        background-color: #F3F4F6;
+        color: #6B7280;
+        text-transform: uppercase;
+        font-size: 6.4pt;
+        letter-spacing: 0.4pt;
+        width: 55%;
+    }
+    .metrics-table .m-value {
+        font-weight: bold;
+        color: #1A1A2E;
+        text-align: right;
+    }
+
+    /* ---------- RECOMMENDATIONS LIST ---------- */
+    .rec-list {
+        margin: 0;
+        padding-left: 12pt;
+        font-size: 7.8pt;
+        line-height: 1.35;
+    }
+    .rec-list li { margin-bottom: 1.5pt; }
+
+    .mono {
+        font-family: Courier, monospace;
+        font-size: 7pt;
+        color: #374151;
+    }
+    .note {
+        font-size: 6.8pt;
+        color: #6B7280;
+        margin-top: 2pt;
+        line-height: 1.3;
+    }
+
+    /* ---------- FOOTER ---------- */
+    .footer {
+        margin-top: 5pt;
+        border-top: 0.75pt solid #E5E7EB;
+        padding-top: 2.5pt;
+        width: 100%;
+        border-collapse: collapse;
+    }
+    .footer td {
+        font-size: 6.5pt;
+        color: #6B7280;
+        padding: 0;
+    }
+    .confidential {
+        color: #DC2626;
+        font-weight: bold;
+        letter-spacing: 0.4pt;
+    }
+</style>
 </head>
-
 <body>
-    <h1>{{ report_type }}</h1>
-    <div class="summary">
-        <h2>Run Overview</h2>
-        <p><strong>Run ID:</strong> {{ run.id }}</p>
-        <p><strong>Target ID:</strong> {{ run.tllm_profile_id }}</p>
-        <p><strong>Date:</strong> {{ run.created_at.strftime('%A, %B %d, %Y') }}</p>
-        <p><strong>Status:</strong> {{ run.status }}</p>
-        <p><strong>Vulnerability Count:</strong> <span class="score {{ 'high' if run.vulnerabilities_found > 0 else 'low' }}">{{ run.vulnerabilities_found }}</span></p>
-    </div>
 
-    {% if is_executive %}
-    <div class="summary" style="background-color: #f0f7ff; border: 1px solid #cce5ff;">
-        <h2 style="color: #004085;">Executive Summary & Risk Assessment</h2>
-        <div style="white-space: pre-wrap;">{{ executive_summary }}</div>
-    </div>
-    {% endif %}
+<!-- HEADER -->
+<table class="header">
+    <tr>
+        <td style="width: 70%;">
+            <div class="brand">SECUSYNC</div>
+            <div class="brand-tag">LLM Security Assessment Toolkit</div>
+        </td>
+        <td style="width: 30%;" class="pill-cell">
+            <span class="report-type-pill">{{ report_type }}</span>
+        </td>
+    </tr>
+</table>
+<hr class="accent-rule">
 
-    {% if is_technical %}
-    <div class="summary" style="background-color: #fff0f0; border: 1px solid #ffcccc;">
-        <h2 style="color: #850000;">AI Technical Analysis & Remediation</h2>
-        <div style="white-space: pre-wrap;">{{ technical_summary }}</div>
-    </div>
-    {% endif %}
+<!-- TITLE -->
+{% if is_executive %}
+<div class="doc-title">Executive Risk Assessment</div>
+<div class="doc-subtitle">Business-impact summary of LLM security findings for a single scan run</div>
+{% else %}
+<div class="doc-title">Technical Findings Report</div>
+<div class="doc-subtitle">Reproducible vulnerability evidence and remediation guidance for engineering teams</div>
+{% endif %}
 
-    <h2>Findings</h2>
-    {% if findings %}
-    {% for finding in findings %}
-    <div class="finding {{ finding.severity }}">
-        <strong>[{{ finding.severity|upper }}]</strong> {{ finding.type }}
-        <p><strong>Prompt:</strong> {{ finding.prompt }}</p>
-        <p><strong>Response Excerpt:</strong> {{ finding.description }}</p>
-    </div>
+<!-- METADATA STRIP -->
+<table class="meta-strip">
+    <tr>
+        <td style="width: 28%;">
+            <span class="meta-label">Run ID</span>
+            <span class="meta-value mono">{{ run.id[:8] if run.id else 'N/A' }}</span>
+        </td>
+        <td style="width: 24%;">
+            <span class="meta-label">Target Profile</span>
+            <span class="meta-value mono">{{ (run.tllm_profile_id|string)[:8] if run.tllm_profile_id else 'N/A' }}</span>
+        </td>
+        <td style="width: 24%;">
+            <span class="meta-label">Scan Date</span>
+            <span class="meta-value">{{ run.created_at.strftime('%d %b %Y') if run.created_at else 'N/A' }}</span>
+        </td>
+        <td style="width: 24%;">
+            <span class="meta-label">Status</span>
+            <span class="meta-value">{{ run.status }}</span>
+        </td>
+    </tr>
+</table>
+
+{% if is_executive %}
+<!-- EXECUTIVE BODY -->
+<table class="kpi-row">
+    <tr>
+        <td class="kpi-cell">
+            <div class="kpi-number {% if overall_risk == 'CRITICAL' %}crit{% elif overall_risk == 'HIGH' %}high{% elif overall_risk == 'MEDIUM' %}med{% else %}low{% endif %}">{{ overall_risk }}</div>
+            <div class="kpi-label">Overall Risk</div>
+        </td>
+        <td class="kpi-cell">
+            <div class="kpi-number {% if total_vulns > 0 %}high{% else %}low{% endif %}">{{ total_vulns }}</div>
+            <div class="kpi-label">Vulnerabilities</div>
+        </td>
+        <td class="kpi-cell">
+            <div class="kpi-number info">{{ total_prompts }}</div>
+            <div class="kpi-label">Prompts Tested</div>
+        </td>
+        <td class="kpi-cell">
+            <div class="kpi-number {% if asr_pct >= 30 %}high{% elif asr_pct >= 10 %}med{% else %}low{% endif %}">{{ asr_pct }}%</div>
+            <div class="kpi-label">Attack Success Rate</div>
+        </td>
+    </tr>
+</table>
+
+<div class="section-title">Executive Summary</div>
+<div class="narrative narrative-exec">{{ executive_summary }}</div>
+
+<table class="two-col">
+    <tr>
+        <td class="col-left">
+            <div class="section-title">Risk Distribution</div>
+            <table class="data-table">
+                <tr><th style="width: 60%;">Severity</th><th style="text-align: right;">Count</th></tr>
+                <tr><td><span class="sev-badge sev-critical">Critical</span></td><td class="num">{{ severity_counts.critical }}</td></tr>
+                <tr><td><span class="sev-badge sev-high">High</span></td><td class="num">{{ severity_counts.high }}</td></tr>
+                <tr><td><span class="sev-badge sev-medium">Medium</span></td><td class="num">{{ severity_counts.medium }}</td></tr>
+                <tr><td><span class="sev-badge sev-low">Low</span></td><td class="num">{{ severity_counts.low }}</td></tr>
+            </table>
+        </td>
+        <td class="col-right">
+            <div class="section-title">Findings By Attack Class</div>
+            <table class="data-table">
+                <tr><th style="width: 70%;">Attack Class</th><th style="text-align: right;">Hits</th></tr>
+                {% for cls, count in attack_class_counts %}
+                <tr><td>{{ cls }}</td><td class="num">{{ count }}</td></tr>
+                {% endfor %}
+                {% if not attack_class_counts %}
+                <tr><td colspan="2" style="color: #6B7280; font-style: italic;">No attack classes triggered.</td></tr>
+                {% endif %}
+            </table>
+        </td>
+    </tr>
+</table>
+
+<div class="section-title">Top Findings</div>
+<table class="data-table">
+    <tr>
+        <th style="width: 11%;">Severity</th>
+        <th style="width: 26%;">Type</th>
+        <th>Business Impact</th>
+    </tr>
+    {% for f in top_findings %}
+    <tr>
+        <td><span class="sev-badge sev-{{ f.severity }}">{{ f.severity|capitalize }}</span></td>
+        <td>{{ f.type }}</td>
+        <td>{{ f.business_impact }}</td>
+    </tr>
     {% endfor %}
-    {% else %}
-    <p>No vulnerabilities detected.</p>
+    {% if not top_findings %}
+    <tr><td colspan="3" style="color: #6B7280; font-style: italic; text-align: center;">No vulnerabilities detected in this scan run.</td></tr>
     {% endif %}
+</table>
 
-    <h2>Additional Notes</h2>
-    <p>This report was generated using the SECUSYNC Security Testing Toolkit.</p>
-    <p class="meta">Generated automatically. End of Report.</p>
+<div class="section-title">Strategic Recommendations</div>
+<ol class="rec-list">
+    {% for r in recommendations %}
+    <li>{{ r }}</li>
+    {% endfor %}
+</ol>
+
+{% else %}
+<!-- TECHNICAL BODY -->
+<div class="section-title">Scan Metrics</div>
+<table class="two-col">
+    <tr>
+        <td class="col-left">
+            <table class="metrics-table">
+                <tr><td class="m-label">Total Prompts Sent</td><td class="m-value">{{ total_prompts }}</td></tr>
+                <tr><td class="m-label">Vulnerable Variants</td><td class="m-value">{{ total_vulns }}</td></tr>
+                <tr><td class="m-label">Attack Success Rate (ASR)</td><td class="m-value">{{ asr_pct }}%</td></tr>
+                <tr><td class="m-label">Needs Manual Review</td><td class="m-value">{{ needs_review_count }}</td></tr>
+            </table>
+        </td>
+        <td class="col-right">
+            <table class="metrics-table">
+                <tr><td class="m-label">Attack Classes Tested</td><td class="m-value">{{ attack_classes_tested }}</td></tr>
+                <tr><td class="m-label">Mutation Strategies</td><td class="m-value">{{ mutation_strategies }}</td></tr>
+                <tr><td class="m-label">Mutation Depth</td><td class="m-value">{{ mutation_depth }}</td></tr>
+                <tr><td class="m-label">Detection Mode</td><td class="m-value">Hybrid (Det. + Sem.)</td></tr>
+            </table>
+        </td>
+    </tr>
+</table>
+
+<div class="section-title">Root Cause Analysis &amp; Remediation</div>
+<div class="narrative">{{ technical_summary }}</div>
+
+<div class="section-title">Findings Detail{% if findings_overflow > 0 %} (Top {{ findings_shown }} of {{ findings_total }}){% endif %}</div>
+<table class="data-table">
+    <tr>
+        <th style="width: 5%;">#</th>
+        <th style="width: 9%;">Sev</th>
+        <th style="width: 17%;">Attack Class</th>
+        <th style="width: 13%;">Strategy</th>
+        <th style="width: 38%;">Prompt (truncated)</th>
+        <th style="width: 18%;">Evidence</th>
+    </tr>
+    {% for f in findings_detail %}
+    <tr>
+        <td>{{ loop.index }}</td>
+        <td><span class="sev-badge sev-{{ f.severity }}">{{ f.severity|upper }}</span></td>
+        <td>{{ f.attack_class }}</td>
+        <td class="mono">{{ f.strategy }}</td>
+        <td class="mono">{{ f.prompt }}</td>
+        <td class="mono">{{ f.evidence }}</td>
+    </tr>
+    {% endfor %}
+    {% if not findings_detail %}
+    <tr><td colspan="6" style="color: #6B7280; font-style: italic; text-align: center;">No vulnerabilities detected. All variants returned NOT_VULNERABLE or NEEDS_REVIEW.</td></tr>
+    {% endif %}
+</table>
+
+<div class="note">
+    {% if findings_overflow > 0 %}
+    <strong>Overflow:</strong> {{ findings_overflow }} additional finding(s) omitted from this view; the complete dataset and PoC artefacts are available in the accompanying ZIP archive.
+    {% else %}
+    <strong>Note:</strong> Raw responses are stored locally and never transmitted. Sensitive content is replaced with <span class="mono">[REDACTED]</span>. Full PoC bundle (prompt, response, configuration) available via the accompanying ZIP archive.
+    {% endif %}
+</div>
+
+{% endif %}
+
+<!-- FOOTER -->
+<table class="footer">
+    <tr>
+        <td style="width: 50%;">
+            <span class="confidential">CONFIDENTIAL</span> &nbsp;|&nbsp; SECUSYNC Security Testing Toolkit
+        </td>
+        <td style="width: 50%; text-align: right;">
+            Generated {{ generation_timestamp }} &nbsp;|&nbsp; Page 1 of 1
+        </td>
+    </tr>
+</table>
+
 </body>
-
 </html>

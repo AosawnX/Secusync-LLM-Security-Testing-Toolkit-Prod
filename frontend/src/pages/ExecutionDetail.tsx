@@ -64,6 +64,22 @@ export function ExecutionDetail() {
     const ACTIVE_STATUSES = ['PENDING', 'RUNNING', 'STOPPING']
     const isActive = run ? ACTIVE_STATUSES.includes(run.status) : false
 
+    const handleDownload = async (endpoint: string, filename: string, mime: string) => {
+        try {
+            const res = await apiClient.get(endpoint, { responseType: 'blob' })
+            const url = URL.createObjectURL(new Blob([res.data], { type: mime }))
+            const a = document.createElement('a')
+            a.href = url
+            a.download = filename
+            document.body.appendChild(a)
+            a.click()
+            a.remove()
+            URL.revokeObjectURL(url)
+        } catch (err: any) {
+            alert(`Download failed: ${err?.response?.data?.detail ?? err.message}`)
+        }
+    }
+
     const handleStopScan = async () => {
         if (!run || stopping) return
         if (!window.confirm('Stop this scan? Partial results will be saved.')) return
@@ -141,21 +157,21 @@ export function ExecutionDetail() {
                 <div>
                     <div className="flex gap-2">
                         <button
-                            onClick={() => window.open(`http://127.0.0.1:8000/api/scans/${run.id}/report/executive`, '_blank')}
+                            onClick={() => handleDownload(`/scans/${run.id}/report/executive`, `Executive_Report_${run.id.slice(0,8)}.pdf`, 'application/pdf')}
                             className="bg-white hover:bg-gray-50 border border-blue-200 text-blue-700 font-medium py-2 px-4 rounded inline-flex items-center gap-2 cursor-pointer transition-colors"
                         >
                             <FileText className="h-4 w-4" />
                             <span>Executive PDF</span>
                         </button>
                         <button
-                            onClick={() => window.open(`http://127.0.0.1:8000/api/scans/${run.id}/report/technical`, '_blank')}
+                            onClick={() => handleDownload(`/scans/${run.id}/report/technical`, `Technical_Report_${run.id.slice(0,8)}.pdf`, 'application/pdf')}
                             className="bg-white hover:bg-gray-50 border border-blue-200 text-blue-700 font-medium py-2 px-4 rounded inline-flex items-center gap-2 cursor-pointer transition-colors"
                         >
                             <Download className="h-4 w-4" />
                             <span>Technical PDF</span>
                         </button>
                         <button
-                            onClick={() => window.open(`http://127.0.0.1:8000/api/scans/${run.id}/report/poc`, '_blank')}
+                            onClick={() => handleDownload(`/scans/${run.id}/report/poc`, `PoC_Bundle_${run.id.slice(0,8)}.zip`, 'application/zip')}
                             className="bg-white hover:bg-gray-50 border border-gray-300 text-gray-700 font-medium py-2 px-4 rounded inline-flex items-center gap-2 cursor-pointer transition-colors"
                         >
                             <Download className="h-4 w-4" />
